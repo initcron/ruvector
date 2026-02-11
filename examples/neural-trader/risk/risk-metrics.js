@@ -226,10 +226,11 @@ function calculateRiskMetrics(returns, portfolioValue) {
   const mean = returns.reduce((a, b) => a + b, 0) / n;
   const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / n;
   const dailyVol = Math.sqrt(variance);
-  const annualVol = dailyVol * Math.sqrt(252);
+  const tradingDaysPerYear = 252;  // Configurable via market config
+  const annualVol = dailyVol * Math.sqrt(tradingDaysPerYear);
 
   // Sharpe (assuming 4.5% risk-free rate)
-  const annualReturn = mean * 252;
+  const annualReturn = mean * tradingDaysPerYear;
   const riskFree = 0.045;
   const sharpe = (annualReturn - riskFree) / annualVol;
 
@@ -238,7 +239,7 @@ function calculateRiskMetrics(returns, portfolioValue) {
   const downsideVar = negReturns.length > 0
     ? negReturns.reduce((sum, r) => sum + Math.pow(r, 2), 0) / n
     : variance;
-  const downsideDev = Math.sqrt(downsideVar) * Math.sqrt(252);
+  const downsideDev = Math.sqrt(downsideVar) * Math.sqrt(tradingDaysPerYear);
   const sortino = (annualReturn - riskFree) / downsideDev;
 
   // Max Drawdown

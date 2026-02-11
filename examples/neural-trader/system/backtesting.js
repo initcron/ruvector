@@ -41,9 +41,10 @@ const backtestConfig = {
  * Performance Metrics Calculator
  */
 class PerformanceMetrics {
-  constructor(riskFreeRate = 0.05) {
+  constructor(riskFreeRate = 0.05, tradingDaysPerYear = 252) {
     this.riskFreeRate = riskFreeRate;
-    this.dailyRiskFreeRate = Math.pow(1 + riskFreeRate, 1/252) - 1;
+    this.tradingDaysPerYear = tradingDaysPerYear;
+    this.dailyRiskFreeRate = Math.pow(1 + riskFreeRate, 1/tradingDaysPerYear) - 1;
   }
 
   // Optimized: Calculate all metrics with minimal passes over data
@@ -73,14 +74,14 @@ class PerformanceMetrics {
     const mean = sum / returns.length;
     const variance = sumSq / returns.length - mean * mean;
     const volatility = Math.sqrt(variance);
-    const annualizedVol = volatility * Math.sqrt(252);
+    const annualizedVol = volatility * Math.sqrt(this.tradingDaysPerYear);
 
     // Single pass: drawdown metrics
     const ddMetrics = this.computeDrawdownMetrics(equityCurve);
 
     // Pre-computed stats for Sharpe/Sortino
     const excessMean = mean - this.dailyRiskFreeRate;
-    const sharpe = volatility > 0 ? (excessMean / volatility) * Math.sqrt(252) : 0;
+    const sharpe = volatility > 0 ? (excessMean / volatility) * Math.sqrt(this.tradingDaysPerYear) : 0;
 
     // Downside deviation (single pass)
     let downsideVariance = 0;
@@ -89,10 +90,10 @@ class PerformanceMetrics {
       if (excess < 0) downsideVariance += excess * excess;
     }
     const downsideDeviation = Math.sqrt(downsideVariance / returns.length);
-    const sortino = downsideDeviation > 0 ? (excessMean / downsideDeviation) * Math.sqrt(252) : 0;
+    const sortino = downsideDeviation > 0 ? (excessMean / downsideDeviation) * Math.sqrt(this.tradingDaysPerYear) : 0;
 
     // Annualized return
-    const years = returns.length / 252;
+    const years = returns.length / this.tradingDaysPerYear;
     const annualizedReturn = Math.pow(compoundReturn, 1 / years) - 1;
 
     // CAGR
@@ -224,7 +225,7 @@ class PerformanceMetrics {
     const mean = sum / minLen;
     const variance = sumSq / minLen - mean * mean;
     const vol = Math.sqrt(variance);
-    return vol > 0 ? (mean / vol) * Math.sqrt(252) : 0;
+    return vol > 0 ? (mean / vol) * Math.sqrt(this.tradingDaysPerYear) : 0;
   }
 
   // Optimized positive months
@@ -271,7 +272,10 @@ class PerformanceMetrics {
 class BacktestEngine {
   constructor(config = backtestConfig) {
     this.config = config;
-    this.metricsCalculator = new PerformanceMetrics(config.riskFreeRate);
+    this.metricsCalculator = new PerformanceMetrics(
+      config.riskFreeRate,
+      config.tradingDaysPerYear || 252
+    );
     this.pipeline = createTradingPipeline();
   }
 

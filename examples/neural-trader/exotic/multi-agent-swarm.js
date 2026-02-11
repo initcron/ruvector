@@ -337,7 +337,8 @@ class VolatilityAgent extends TradingAgent {
     // Calculate realized volatility
     const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
     const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
-    const volatility = Math.sqrt(variance) * Math.sqrt(252);  // Annualized
+    const tradingDaysPerYear = 252;
+    const volatility = Math.sqrt(variance) * Math.sqrt(tradingDaysPerYear);  // Annualized
 
     // Detect regime
     const highVolThreshold = 0.30;  // 30% annualized

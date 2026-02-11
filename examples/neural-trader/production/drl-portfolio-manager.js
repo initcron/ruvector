@@ -547,6 +547,7 @@ class PortfolioEnvironment {
     this.config = config;
     this.numAssets = priceData.length;
     this.numDays = priceData[0].length;
+    this.tradingDaysPerYear = config.tradingDaysPerYear || 252;
 
     this.reset();
   }
@@ -664,7 +665,7 @@ class PortfolioEnvironment {
         if (this.returns.length < 10) return portfolioReturn;
         const mean = this.returns.reduce((a, b) => a + b, 0) / this.returns.length;
         const std = Math.sqrt(this.returns.reduce((a, b) => a + (b - mean) ** 2, 0) / this.returns.length) || 1;
-        return mean / std * Math.sqrt(252);
+        return mean / std * Math.sqrt(this.tradingDaysPerYear);
 
       case 'sortino':
         if (this.returns.length < 10) return portfolioReturn;
@@ -673,7 +674,7 @@ class PortfolioEnvironment {
         const downsideStd = downside.length > 0
           ? Math.sqrt(downside.reduce((a, b) => a + b ** 2, 0) / downside.length)
           : 1;
-        return meanRet / downsideStd * Math.sqrt(252);
+        return meanRet / downsideStd * Math.sqrt(this.tradingDaysPerYear);
 
       case 'drawdown':
         const dd = (this.peakValue - this.portfolioValue) / this.peakValue;
@@ -686,11 +687,11 @@ class PortfolioEnvironment {
 
   getStats() {
     const totalReturn = (this.portfolioValue - this.initialValue) / this.initialValue;
-    const annualizedReturn = totalReturn * 252 / this.returns.length;
+    const annualizedReturn = totalReturn * this.tradingDaysPerYear / this.returns.length;
 
     const mean = this.returns.reduce((a, b) => a + b, 0) / this.returns.length;
     const std = Math.sqrt(this.returns.reduce((a, b) => a + (b - mean) ** 2, 0) / this.returns.length) || 1;
-    const sharpe = mean / std * Math.sqrt(252);
+    const sharpe = mean / std * Math.sqrt(this.tradingDaysPerYear);
 
     const maxDrawdown = this.history.reduce((max, h) => {
       const dd = (this.peakValue - h.value) / this.peakValue;

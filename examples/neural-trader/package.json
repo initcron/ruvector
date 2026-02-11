@@ -40,6 +40,10 @@
     "exotic:quantum": "node exotic/quantum-portfolio-optimization.js",
     "exotic:hyperbolic": "node exotic/hyperbolic-embeddings.js",
     "exotic:arbitrage": "node exotic/atomic-arbitrage.js",
+    "india:paper": "node cli.js paper --market=india --symbol=RELIANCE --capital=1000000",
+    "india:backtest": "node cli.js backtest --market=india --symbol=RELIANCE --days=250 --capital=1000000",
+    "india:analyze": "node cli.js analyze --market=india --symbol=HDFCBANK",
+    "india:broker": "node advanced/live-broker-kite.js",
     "test": "node --test tests/*.test.js"
   },
   "dependencies": {
@@ -63,7 +67,8 @@
     "@neural-trader/news-trading": "^2.1.1",
     "@neural-trader/mcp-protocol": "^2.0.0",
     "@neural-trader/benchoptimizer": "^2.1.1",
-    "@ruvector/core": "^0.1.17"
+    "@ruvector/core": "^0.1.17",
+    "kiteconnect": "^5.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0"

@@ -8,15 +8,22 @@
  *   npx neural-trader run --strategy=hybrid --symbol=AAPL
  *   npx neural-trader backtest --data=./data.json --days=252
  *   npx neural-trader paper --capital=100000
+ *
+ * India Market:
+ *   npx neural-trader paper --market=india --symbol=RELIANCE --capital=1000000
+ *   npx neural-trader backtest --market=india --symbol=TCS --days=250
+ *   npx neural-trader analyze --market=india --symbol=HDFCBANK
  */
 
 import { createTradingPipeline } from './system/trading-pipeline.js';
 import { BacktestEngine, PerformanceMetrics } from './system/backtesting.js';
 import { DataManager } from './system/data-connectors.js';
 import { RiskManager } from './system/risk-management.js';
+import { getMarketConfig, formatCurrency, listMarkets } from './config/markets/index.js';
+import { MarketCalendar } from './system/market-calendar.js';
 
 // CLI Configuration
-const CLI_VERSION = '1.0.0';
+const CLI_VERSION = '1.1.0';
 
 // Parse command line arguments
 function parseArgs(args) {
@@ -36,6 +43,22 @@ function parseArgs(args) {
   }
 
   return parsed;
+}
+
+// Resolve market config from CLI options
+function resolveMarket(options) {
+  const marketId = options.market || 'us';
+  const market = getMarketConfig(marketId);
+  const calendar = new MarketCalendar(market);
+  const symbol = options.symbol || market.defaultSymbols[0];
+  const capital = parseFloat(options.capital) || (marketId === 'india' ? 1000000 : 100000);
+
+  return { market, calendar, symbol, capital, marketId };
+}
+
+// Format price with market-appropriate currency
+function fmtPrice(value, market) {
+  return formatCurrency(value, market);
 }
 
 // Generate synthetic data for demo
@@ -61,9 +84,52 @@ function generateSyntheticData(days = 252, startPrice = 100) {
   return data;
 }
 
+// Try to fetch real market data for India, fall back to synthetic
+async function fetchIndiaData(symbol, days, market) {
+  try {
+    const { IndiaDataManager } = await import('./system/data-connectors-india.js');
+    const dataManager = new IndiaDataManager({
+      exchange: 'NSE',
+      kiteTier: process.env.KITE_TIER || 'free'
+    });
+
+    console.log(`Fetching real NSE data for ${symbol}...`);
+    const historical = await dataManager.getHistorical(symbol, {
+      period: days > 365 ? '5y' : days > 180 ? '1y' : '6mo',
+      interval: '1d'
+    });
+
+    if (historical && historical.length >= 30) {
+      console.log(`Loaded ${historical.length} candles from Yahoo Finance (${symbol}.NS)`);
+      return historical;
+    }
+  } catch (err) {
+    console.warn(`Could not fetch live data: ${err.message}`);
+  }
+
+  // Fallback to synthetic data with India-typical prices
+  console.log(`Using synthetic data for ${symbol} (${days} days)`);
+  return generateSyntheticData(days, 2500); // India stocks typically ₹500-₹5000
+}
+
+// Try to fetch real quote for India
+async function fetchIndiaQuote(symbol) {
+  try {
+    const { IndiaDataManager } = await import('./system/data-connectors-india.js');
+    const dataManager = new IndiaDataManager({ exchange: 'NSE' });
+    const quote = await dataManager.getQuote(symbol);
+    return quote;
+  } catch {
+    return null;
+  }
+}
+
 // Commands
 const commands = {
-  help: () => {
+  help: (options) => {
+    const markets = listMarkets();
+    const marketList = markets.map(m => `${m.id} (${m.currency})`).join(', ');
+
     console.log(`
 Neural-Trader CLI v${CLI_VERSION}
 
@@ -80,43 +146,72 @@ COMMANDS:
 
 OPTIONS:
   --strategy=<name>    Strategy: hybrid, lstm, drl, sentiment (default: hybrid)
-  --symbol=<ticker>    Stock/crypto symbol (default: AAPL)
-  --capital=<amount>   Initial capital (default: 100000)
-  --days=<n>           Number of trading days (default: 252)
+  --symbol=<ticker>    Stock symbol (default: AAPL for US, RELIANCE for India)
+  --capital=<amount>   Initial capital (default: $100,000 US / ₹10,00,000 India)
+  --days=<n>           Number of trading days (default: 252 US / 250 India)
+  --market=<id>        Market: ${marketList} (default: us)
+  --product=<type>     India only: MIS (intraday), CNC (delivery), NRML (F&O)
+  --exchange=<code>    India only: NSE or BSE (default: NSE)
   --data=<path>        Path to historical data file
   --output=<path>      Path for output results
   --verbose            Enable verbose output
   --json               Output in JSON format
 
-EXAMPLES:
+US EXAMPLES:
   neural-trader run --strategy=hybrid --symbol=AAPL
   neural-trader backtest --days=500 --capital=50000
   neural-trader paper --capital=100000 --strategy=drl
   neural-trader analyze --symbol=TSLA --verbose
+
+INDIA EXAMPLES:
+  neural-trader paper --market=india --symbol=RELIANCE --capital=1000000
+  neural-trader backtest --market=india --symbol=TCS --days=250 --capital=500000
+  neural-trader analyze --market=india --symbol=HDFCBANK --verbose
+  neural-trader run --market=india --symbol=INFY --product=MIS
+
+ENVIRONMENT VARIABLES (India/Kite Connect):
+  KITE_API_KEY         Kite Connect API key (for live trading)
+  KITE_API_SECRET      Kite Connect API secret
+  KITE_ACCESS_TOKEN    Kite Connect session token (refreshed daily)
+  KITE_TIER            'free' (Yahoo data) or 'connect' (Kite data)
 `);
   },
 
   run: async (options) => {
+    const { market, calendar, symbol, capital, marketId } = resolveMarket(options);
+
     console.log('═'.repeat(70));
-    console.log('NEURAL-TRADER: REAL-TIME MODE');
+    console.log(`NEURAL-TRADER: REAL-TIME MODE ${marketId === 'india' ? '(NSE)' : ''}`);
     console.log('═'.repeat(70));
     console.log();
 
     const strategy = options.strategy || 'hybrid';
-    const symbol = options.symbol || 'AAPL';
-    const capital = parseFloat(options.capital) || 100000;
+    const product = options.product || (marketId === 'india' ? 'CNC' : null);
 
+    console.log(`Market: ${market.name}`);
     console.log(`Strategy: ${strategy}`);
     console.log(`Symbol: ${symbol}`);
-    console.log(`Capital: $${capital.toLocaleString()}`);
+    console.log(`Capital: ${fmtPrice(capital, market)}`);
+    if (product) console.log(`Product: ${product}`);
+
+    if (marketId === 'india') {
+      const status = calendar.isMarketOpen(new Date())
+        ? 'OPEN' : `CLOSED (next: ${calendar.getNextMarketOpen(new Date()).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })})`;
+      console.log(`NSE Status: ${status}`);
+    }
     console.log();
 
     const pipeline = createTradingPipeline();
     const riskManager = new RiskManager();
     riskManager.startDay(capital);
 
-    // Generate sample data for demo
-    const marketData = generateSyntheticData(100);
+    // Fetch real data for India, synthetic for US demo
+    let marketData;
+    if (marketId === 'india') {
+      marketData = await fetchIndiaData(symbol, 100, market);
+    } else {
+      marketData = generateSyntheticData(100);
+    }
     const currentPrice = marketData[marketData.length - 1].close;
 
     const context = {
@@ -155,7 +250,14 @@ EXAMPLES:
       console.log();
       console.log('ORDERS:');
       for (const order of result.orders) {
-        console.log(`  ${order.side.toUpperCase()} ${order.quantity} ${order.symbol} @ $${order.price.toFixed(2)}`);
+        const price = fmtPrice(order.price, market);
+        // Round to whole shares for India
+        const qty = marketId === 'india'
+          ? Math.floor(order.quantity)
+          : order.quantity;
+        if (qty > 0) {
+          console.log(`  ${order.side.toUpperCase()} ${qty} ${order.symbol} @ ${price}`);
+        }
       }
     } else {
       console.log();
@@ -173,24 +275,35 @@ EXAMPLES:
   },
 
   backtest: async (options) => {
+    const { market, symbol, capital, marketId } = resolveMarket(options);
+    const tradingDays = market.calendar.tradingDaysPerYear;
+    const days = parseInt(options.days) || tradingDays;
+
     console.log('═'.repeat(70));
-    console.log('NEURAL-TRADER: BACKTEST MODE');
+    console.log(`NEURAL-TRADER: BACKTEST MODE ${marketId === 'india' ? '(NSE)' : ''}`);
     console.log('═'.repeat(70));
     console.log();
 
-    const days = parseInt(options.days) || 252;
-    const capital = parseFloat(options.capital) || 100000;
-    const symbol = options.symbol || 'TEST';
-
+    console.log(`Market: ${market.name}`);
+    console.log(`Symbol: ${symbol}`);
     console.log(`Period: ${days} trading days`);
-    console.log(`Initial Capital: $${capital.toLocaleString()}`);
+    console.log(`Initial Capital: ${fmtPrice(capital, market)}`);
+    console.log(`Risk-Free Rate: ${(market.riskFreeRate * 100).toFixed(1)}%`);
+    console.log(`Trading Days/Year: ${tradingDays}`);
     console.log();
 
     const engine = new BacktestEngine({
-      simulation: { initialCapital: capital, warmupPeriod: 50 }
+      simulation: { initialCapital: capital, warmupPeriod: 50 },
+      tradingDaysPerYear: tradingDays
     });
 
-    const historicalData = generateSyntheticData(days);
+    // Fetch real data for India, synthetic for US demo
+    let historicalData;
+    if (marketId === 'india') {
+      historicalData = await fetchIndiaData(symbol, days, market);
+    } else {
+      historicalData = generateSyntheticData(days);
+    }
 
     console.log('Running backtest...');
     const results = await engine.run(historicalData, {
@@ -202,6 +315,28 @@ EXAMPLES:
 
     console.log(engine.generateReport(results));
 
+    // Show India-specific cost info
+    if (marketId === 'india' && results.trades && results.trades.length > 0) {
+      const { calculateIndianTransactionCosts } = await import('./config/markets/india.js');
+      let totalCosts = 0;
+      const product = options.product || 'CNC';
+
+      for (const trade of results.trades) {
+        const orderValue = Math.abs(trade.quantity * trade.price);
+        const side = trade.quantity > 0 ? 'BUY' : 'SELL';
+        const costs = calculateIndianTransactionCosts(orderValue, side, product, market.costs);
+        totalCosts += costs.total;
+      }
+
+      console.log();
+      console.log('INDIA TRANSACTION COSTS:');
+      console.log('─'.repeat(70));
+      console.log(`Product Type: ${product}`);
+      console.log(`Total Trades: ${results.trades.length}`);
+      console.log(`Total Costs: ${fmtPrice(totalCosts, market)}`);
+      console.log(`Cost as % of Capital: ${((totalCosts / capital) * 100).toFixed(3)}%`);
+    }
+
     if (options.output) {
       const fs = await import('fs');
       fs.writeFileSync(options.output, JSON.stringify(results, null, 2));
@@ -210,19 +345,42 @@ EXAMPLES:
   },
 
   paper: async (options) => {
+    const { market, calendar, symbol, capital, marketId } = resolveMarket(options);
+    const product = options.product || (marketId === 'india' ? 'CNC' : null);
+    const interval = parseInt(options.interval) || 5000;
+
     console.log('═'.repeat(70));
-    console.log('NEURAL-TRADER: PAPER TRADING MODE');
+    console.log(`NEURAL-TRADER: PAPER TRADING ${marketId === 'india' ? '(NSE - ' + (product || 'CNC') + ')' : ''}`);
     console.log('═'.repeat(70));
     console.log();
 
-    const capital = parseFloat(options.capital) || 100000;
-    const symbol = options.symbol || 'AAPL';
-    const interval = parseInt(options.interval) || 5000; // 5 seconds default
-
-    console.log(`Starting paper trading session...`);
-    console.log(`Capital: $${capital.toLocaleString()}`);
+    console.log(`Market: ${market.name}`);
     console.log(`Symbol: ${symbol}`);
+    console.log(`Capital: ${fmtPrice(capital, market)}`);
+    if (product) console.log(`Product: ${product}`);
     console.log(`Update interval: ${interval}ms`);
+
+    if (marketId === 'india') {
+      const isOpen = calendar.isMarketOpen(new Date());
+      if (!isOpen) {
+        const nextOpen = calendar.getNextMarketOpen(new Date());
+        console.log();
+        console.log(`NSE is currently CLOSED.`);
+        console.log(`Next open: ${nextOpen.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}`);
+        console.log(`Running with simulated price data...`);
+      } else {
+        const ttc = calendar.timeToClose(new Date());
+        const minsLeft = Math.floor(ttc / 60000);
+        console.log(`NSE: OPEN (${minsLeft} min until close)`);
+        if (product === 'MIS') {
+          const tts = calendar.timeToSquareOff(new Date());
+          if (tts > 0) {
+            console.log(`MIS auto-square-off in ${Math.floor(tts / 60000)} min`);
+          }
+        }
+      }
+    }
+
     console.log();
     console.log('Press Ctrl+C to stop');
     console.log();
@@ -238,15 +396,90 @@ EXAMPLES:
       assets: [symbol]
     };
 
-    let priceHistory = generateSyntheticData(100);
+    // Seed price history - try real data for India
+    let priceHistory;
+    if (marketId === 'india') {
+      priceHistory = await fetchIndiaData(symbol, 100, market);
+    } else {
+      priceHistory = generateSyntheticData(100);
+    }
+
     let iteration = 0;
+    let totalTradingCosts = 0;
+
+    // For India paper mode, try to init broker in paper mode
+    let broker = null;
+    if (marketId === 'india') {
+      try {
+        const { KiteConnectBroker } = await import('./advanced/live-broker-kite.js');
+        broker = new KiteConnectBroker({
+          kite: {
+            apiKey: process.env.KITE_API_KEY || '',
+            apiSecret: process.env.KITE_API_SECRET || '',
+            accessToken: process.env.KITE_ACCESS_TOKEN || '',
+            paper: true,
+            tier: process.env.KITE_TIER || 'free'
+          },
+          risk: {
+            maxOrderValue: market.riskLimits?.maxPositionValue || 500000,
+            maxDailyLoss: 25000,
+            maxPositionPct: market.riskLimits?.maxPositionSizePct || 0.10,
+            requireConfirmation: false
+          },
+          execution: {
+            defaultProduct: product || 'CNC',
+            defaultValidity: 'DAY',
+            slippageTolerance: 0.001,
+            retryAttempts: 3,
+            retryDelayMs: 1000
+          }
+        });
+        await broker.connect();
+        console.log();
+      } catch (err) {
+        if (options.verbose) console.warn(`Broker init skipped: ${err.message}`);
+      }
+    }
+
+    // MIS auto-square-off timer for India
+    let squareOffTimeout = null;
+    if (marketId === 'india' && product === 'MIS' && calendar.isMarketOpen(new Date())) {
+      const tts = calendar.timeToSquareOff(new Date());
+      if (tts > 0) {
+        squareOffTimeout = setTimeout(() => {
+          console.log();
+          console.log('═'.repeat(70));
+          console.log('[15:15 IST] MIS AUTO-SQUARE-OFF');
+          console.log('═'.repeat(70));
+          for (const [sym, qty] of Object.entries(portfolio.positions)) {
+            if (qty !== 0) {
+              const price = priceHistory[priceHistory.length - 1].close;
+              console.log(`  Closing ${sym}: ${qty > 0 ? 'SELL' : 'BUY'} ${Math.abs(qty)} @ ${fmtPrice(price, market)}`);
+              portfolio.cash += qty * price;
+              portfolio.positions[sym] = 0;
+            }
+          }
+          portfolio.equity = portfolio.cash;
+          console.log(`  Post-square-off equity: ${fmtPrice(portfolio.equity, market)}`);
+        }, tts);
+      }
+    }
 
     const tick = async () => {
       iteration++;
 
       // Simulate price movement
       const lastPrice = priceHistory[priceHistory.length - 1].close;
-      const newPrice = lastPrice * (1 + (Math.random() - 0.48) * 0.01);
+
+      // Try live quote for India during market hours
+      let newPrice;
+      if (marketId === 'india' && calendar.isMarketOpen(new Date()) && iteration % 6 === 0) {
+        // Every ~30s, try a live quote
+        const quote = await fetchIndiaQuote(symbol);
+        newPrice = quote?.price || lastPrice * (1 + (Math.random() - 0.48) * 0.01);
+      } else {
+        newPrice = lastPrice * (1 + (Math.random() - 0.48) * 0.01);
+      }
 
       priceHistory.push({
         date: new Date(),
@@ -281,14 +514,36 @@ EXAMPLES:
 
         const pnl = portfolio.equity - capital;
         const pnlPercent = (pnl / capital) * 100;
+        const pnlSign = pnl >= 0 ? '+' : '';
 
-        console.log(`[${new Date().toLocaleTimeString()}] Tick #${iteration}`);
-        console.log(`  Price: $${newPrice.toFixed(2)} | Equity: $${portfolio.equity.toFixed(2)} | P&L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercent.toFixed(2)}%)`);
+        const time = marketId === 'india'
+          ? new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })
+          : new Date().toLocaleTimeString();
+
+        console.log(`[${time}] Price: ${fmtPrice(newPrice, market)} | Equity: ${fmtPrice(portfolio.equity, market)} | P&L: ${pnlSign}${fmtPrice(pnl, market)} (${pnlPercent.toFixed(2)}%)`);
 
         if (result.signals?.[symbol]) {
           const signal = result.signals[symbol];
           if (signal.direction !== 'neutral') {
-            console.log(`  Signal: ${signal.direction.toUpperCase()} (${(signal.strength * 100).toFixed(0)}%)`);
+            // For India, compute order with whole shares and transaction costs
+            if (marketId === 'india') {
+              const positionSize = capital * 0.05 * signal.strength; // 5% max per signal
+              const qty = Math.floor(positionSize / newPrice);
+              if (qty > 0) {
+                const { calculateIndianTransactionCosts } = await import('./config/markets/india.js');
+                const orderValue = qty * newPrice;
+                const costs = calculateIndianTransactionCosts(
+                  orderValue,
+                  signal.direction === 'long' ? 'BUY' : 'SELL',
+                  product || 'CNC',
+                  market.costs
+                );
+                totalTradingCosts += costs.total;
+                console.log(`  Signal: ${signal.direction.toUpperCase()} ${qty} shares @ ${fmtPrice(newPrice, market)} (cost: ${fmtPrice(costs.total, market)})`);
+              }
+            } else {
+              console.log(`  Signal: ${signal.direction.toUpperCase()} (${(signal.strength * 100).toFixed(0)}%)`);
+            }
           }
         }
 
@@ -307,23 +562,29 @@ EXAMPLES:
     // Handle graceful shutdown
     process.on('SIGINT', () => {
       clearInterval(intervalId);
+      if (squareOffTimeout) clearTimeout(squareOffTimeout);
       console.log();
       console.log('─'.repeat(70));
       console.log('Paper trading session ended');
-      console.log(`Final equity: $${portfolio.equity.toFixed(2)}`);
-      console.log(`Total P&L: $${(portfolio.equity - capital).toFixed(2)}`);
+      console.log(`Market: ${market.name}`);
+      console.log(`Final equity: ${fmtPrice(portfolio.equity, market)}`);
+      console.log(`Total P&L: ${fmtPrice(portfolio.equity - capital, market)}`);
+      if (marketId === 'india' && totalTradingCosts > 0) {
+        console.log(`Total transaction costs: ${fmtPrice(totalTradingCosts, market)}`);
+      }
       process.exit(0);
     });
   },
 
   analyze: async (options) => {
+    const { market, symbol, capital, marketId } = resolveMarket(options);
+
     console.log('═'.repeat(70));
-    console.log('NEURAL-TRADER: ANALYSIS MODE');
+    console.log(`NEURAL-TRADER: ANALYSIS MODE ${marketId === 'india' ? '(NSE)' : ''}`);
     console.log('═'.repeat(70));
     console.log();
 
-    const symbol = options.symbol || 'AAPL';
-
+    console.log(`Market: ${market.name}`);
     console.log(`Analyzing ${symbol}...`);
     console.log();
 
@@ -336,8 +597,13 @@ EXAMPLES:
     const featureExtractor = new FeatureExtractor();
     const lstm = new HybridLSTMTransformer();
 
-    // Generate sample data
-    const marketData = generateSyntheticData(100);
+    // Fetch real data for India, synthetic for US demo
+    let marketData;
+    if (marketId === 'india') {
+      marketData = await fetchIndiaData(symbol, 100, market);
+    } else {
+      marketData = generateSyntheticData(100);
+    }
     const features = featureExtractor.extract(marketData);
 
     console.log('TECHNICAL ANALYSIS:');
@@ -352,16 +618,22 @@ EXAMPLES:
     console.log('SENTIMENT ANALYSIS:');
     console.log('─'.repeat(70));
 
-    const sampleNews = [
-      'Strong earnings beat analyst expectations with revenue growth',
-      'Company faces regulatory headwinds',
-      'Quarterly results in line with market estimates'
-    ];
+    const sampleNews = marketId === 'india'
+      ? [
+        `${symbol} reports strong quarterly earnings beating estimates`,
+        `SEBI tightens FPI rules affecting market sentiment`,
+        `Nifty 50 hits all-time high led by banking stocks`
+      ]
+      : [
+        'Strong earnings beat analyst expectations with revenue growth',
+        'Company faces regulatory headwinds',
+        'Quarterly results in line with market estimates'
+      ];
 
     for (const text of sampleNews) {
       const result = lexicon.analyze(text);
       const sentiment = result.score > 0.2 ? 'Positive' : result.score < -0.2 ? 'Negative' : 'Neutral';
-      console.log(`"${text.slice(0, 50)}..."`);
+      console.log(`"${text.slice(0, 55)}..."`);
       console.log(`  → ${sentiment} (score: ${result.score.toFixed(2)})`);
     }
 
@@ -369,13 +641,34 @@ EXAMPLES:
     console.log('RISK METRICS:');
     console.log('─'.repeat(70));
 
-    const metrics = new PerformanceMetrics();
+    const tradingDays = market.calendar.tradingDaysPerYear;
+    const metrics = new PerformanceMetrics(market.riskFreeRate, tradingDays);
     const equityCurve = marketData.map(d => d.close * 1000);
     const perf = metrics.calculate(equityCurve);
 
+    console.log(`Risk-Free Rate: ${(market.riskFreeRate * 100).toFixed(1)}% (${marketId === 'india' ? 'RBI repo' : 'US Treasury'})`);
+    console.log(`Trading Days/Year: ${tradingDays}`);
     console.log(`Volatility (Ann.): ${(perf.annualizedVolatility * 100).toFixed(2)}%`);
     console.log(`Max Drawdown: ${(perf.maxDrawdown * 100).toFixed(2)}%`);
     console.log(`Sharpe Ratio: ${perf.sharpeRatio.toFixed(2)}`);
+
+    // Show transaction cost estimate for India
+    if (marketId === 'india') {
+      const { calculateIndianTransactionCosts } = await import('./config/markets/india.js');
+      const price = marketData[marketData.length - 1].close;
+      const product = options.product || 'CNC';
+
+      console.log();
+      console.log('TRANSACTION COST ESTIMATE:');
+      console.log('─'.repeat(70));
+
+      for (const side of ['BUY', 'SELL']) {
+        const orderValue = 100 * price; // 100 shares
+        const costs = calculateIndianTransactionCosts(orderValue, side, product, market.costs);
+        console.log(`  ${product} ${side} 100 shares @ ${fmtPrice(price, market)}`);
+        console.log(`    Total Cost: ${fmtPrice(costs.total, market)} (${(costs.totalPercent * 100).toFixed(4)}%)`);
+      }
+    }
   },
 
   benchmark: async (options) => {

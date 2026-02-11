@@ -354,7 +354,8 @@ class TradingEnvironment {
     const mean = this.returns.reduce((a, b) => a + b, 0) / this.returns.length;
     const variance = this.returns.reduce((s, r) => s + (r - mean) ** 2, 0) / this.returns.length;
     if (variance === 0) return 0;
-    return mean / Math.sqrt(variance) * Math.sqrt(252);
+    const tradingDaysPerYear = 252;
+    return mean / Math.sqrt(variance) * Math.sqrt(tradingDaysPerYear);
   }
 
   step(action) {

@@ -466,7 +466,7 @@ function simulateTrading(y, predictions, marketData) {
 
   return {
     totalReturn: (capital - 10000) / 10000,
-    sharpe: stdReturn > 0 ? (avgReturn * Math.sqrt(252)) / (stdReturn * Math.sqrt(252)) : 0,
+    sharpe: stdReturn > 0 ? avgReturn / stdReturn : 0,
     winRate: returns.length > 0 ? wins / (wins + losses) : 0,
     profitFactor: grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? Infinity : 0,
     maxDrawdown: maxDD

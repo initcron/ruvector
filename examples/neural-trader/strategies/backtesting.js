@@ -28,7 +28,7 @@ const backtestConfig = {
   spreadCost: 0.0001,       // Bid-ask spread cost
 
   // Walk-forward settings
-  trainingPeriod: 252,      // ~1 year of trading days
+  trainingPeriod: 252,      // ~1 year of trading days (US: 252, India: 250)
   testingPeriod: 63,        // ~3 months
   rollingWindow: true
 };

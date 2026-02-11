@@ -56,7 +56,7 @@ const riskConfig = {
   // Risk scoring
   scoring: {
     updateFrequency: 60000,     // Update every minute
-    historyWindow: 252,         // 1 year of daily data
+    historyWindow: 252,         // ~1 year of daily data (US: 252, India: 250)
     correlationThreshold: 0.7   // High correlation threshold
   }
 };
