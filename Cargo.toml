@@ -98,6 +98,7 @@ members = [
     "crates/rvf/rvf-server",
     "crates/rvf/rvf-import",
     "crates/rvf/rvf-cli",
+    "crates/rvf/rvf-federation",
     "crates/rvf/tests/rvf-integration",
     "crates/rvf/benches",
     "crates/ruvector-coherence",
@@ -111,6 +112,10 @@ members = [
     "crates/ruvector-graph-transformer-node",
     "examples/rvf-kernel-optimized",
     "examples/verified-applications",
+    "crates/thermorust",
+    "crates/ruvector-dither",
+    "crates/ruvector-robotics",
+    "examples/robotics",
 ]
 resolver = "2"
 
