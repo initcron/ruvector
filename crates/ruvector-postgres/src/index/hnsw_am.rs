@@ -34,7 +34,6 @@ use std::ptr;
 use std::sync::atomic::{AtomicU64, Ordering as AtomicOrdering};
 
 use crate::distance::{distance, DistanceMetric};
-use crate::index::HnswConfig;
 use crate::types::RuVector;
 use pgrx::FromDatum;
 
@@ -427,6 +426,37 @@ fn byte_to_metric(byte: u8) -> DistanceMetric {
     }
 }
 
+/// Determine distance metric from the index's operator class support function.
+/// Falls back to Euclidean if the function cannot be identified.
+unsafe fn metric_from_index(index: Relation) -> DistanceMetric {
+    // Get FUNCTION 1 (distance function) for the first indexed column
+    let procid = pg_sys::index_getprocid(index, 1, 1);
+    if procid == pg_sys::InvalidOid {
+        return DistanceMetric::Euclidean;
+    }
+
+    // Look up the function name from pg_proc
+    let name_ptr = pg_sys::get_func_name(procid);
+    if name_ptr.is_null() {
+        return DistanceMetric::Euclidean;
+    }
+
+    let name = std::ffi::CStr::from_ptr(name_ptr).to_str().unwrap_or("");
+
+    let metric = if name.contains("cosine") {
+        DistanceMetric::Cosine
+    } else if name.contains("ip") || name.contains("inner_product") {
+        DistanceMetric::InnerProduct
+    } else if name.contains("l1") || name.contains("manhattan") {
+        DistanceMetric::Manhattan
+    } else {
+        DistanceMetric::Euclidean
+    };
+
+    pg_sys::pfree(name_ptr as *mut _);
+    metric
+}
+
 /// Allocate a new node page and write vector data
 unsafe fn allocate_node_page(
     index_rel: Relation,
@@ -505,6 +535,23 @@ unsafe fn read_vector(
 
     let header = page as *const PageHeaderData;
     let data_ptr = (header as *const u8).add(size_of::<PageHeaderData>());
+
+    // Bounds check: prevent reading past page boundary. Fixes #164 segfault.
+    let page_size = pg_sys::BLCKSZ as usize;
+    let total_read_end = size_of::<PageHeaderData>()
+        + size_of::<HnswNodePageHeader>()
+        + dimensions * size_of::<f32>();
+    if total_read_end > page_size {
+        pgrx::warning!(
+            "HNSW: Vector read would exceed page boundary ({} > {}), skipping block {}",
+            total_read_end,
+            page_size,
+            block
+        );
+        pg_sys::UnlockReleaseBuffer(buffer);
+        return None;
+    }
+
     let vector_ptr = data_ptr.add(size_of::<HnswNodePageHeader>()) as *const f32;
 
     let mut vector = Vec::with_capacity(dimensions);
@@ -548,6 +595,25 @@ unsafe fn read_neighbors(
     for l in 0..layer {
         let count = node_header.neighbor_counts.get(l).copied().unwrap_or(0) as usize;
         offset += count * size_of::<HnswNeighbor>();
+    }
+
+    // Bounds check: prevent reading past page boundary. Fixes #164 segfault.
+    let page_size = pg_sys::BLCKSZ as usize;
+    let header_size = size_of::<PageHeaderData>();
+    let total_read_end = header_size
+        + size_of::<HnswNodePageHeader>()
+        + vector_size
+        + offset
+        + neighbor_count * size_of::<HnswNeighbor>();
+    if total_read_end > page_size {
+        pgrx::warning!(
+            "HNSW: Neighbor read would exceed page boundary ({} > {}), skipping block {}",
+            total_read_end,
+            page_size,
+            block
+        );
+        pg_sys::UnlockReleaseBuffer(buffer);
+        return Vec::new();
     }
 
     let neighbors_ptr = neighbors_base.add(offset) as *const HnswNeighbor;
@@ -622,7 +688,7 @@ unsafe fn hnsw_search(
             let neighbors = read_neighbors(index_rel, current, layer, dimensions);
             let mut improved = false;
 
-            for neighbor in neighbors {
+            for neighbor in &neighbors {
                 let dist =
                     calculate_distance(index_rel, query, neighbor.block_num, dimensions, metric);
                 if dist < current_dist {
@@ -712,15 +778,14 @@ unsafe fn hnsw_search(
         }
     }
 
-    // Convert to sorted result vector
+    // Convert to sorted result vector — collect all via into_sorted_vec().
+    // BinaryHeap::into_iter yields items in arbitrary order, so we use
+    // into_sorted_vec() for deterministic ordering. Fixes #171.
     let mut result_vec: Vec<_> = results
+        .into_sorted_vec()
         .into_iter()
-        .take(k)
         .map(|r| (r.block, r.tid, r.distance))
         .collect();
-
-    result_vec.sort_by(|a, b| a.2.partial_cmp(&b.2).unwrap_or(Ordering::Equal));
-    result_vec.truncate(k);
 
     result_vec
 }
@@ -736,11 +801,36 @@ unsafe extern "C" fn hnsw_build(
     index: Relation,
     index_info: *mut IndexInfo,
 ) -> *mut IndexBuildResult {
-    pgrx::log!("HNSW v2: Starting index build");
+    // Determine distance metric from operator class
+    let metric = metric_from_index(index);
+    pgrx::log!("HNSW v2: Starting index build (metric={:?})", metric);
 
-    // Get dimensions from first tuple or index definition
-    let dimensions = 128; // TODO: Extract from index column definition
-    let config = HnswConfig::default();
+    // Extract dimensions from the indexed column's type modifier (atttypmod).
+    // For ruvector(384), atttypmod == 384. Fixes #171 and #164.
+    let dimensions = {
+        let tupdesc = (*heap).rd_att;
+        let natts = (*index_info).ii_NumIndexAttrs as usize;
+        let mut dims: u32 = 0;
+        if natts > 0 && !tupdesc.is_null() {
+            let attnum = (*index_info).ii_IndexAttrNumbers[0];
+            if attnum > 0 && (attnum as isize) <= (*tupdesc).natts as isize {
+                let attr = (*tupdesc).attrs.as_ptr().offset((attnum - 1) as isize);
+                let typmod = (*attr).atttypmod;
+                if typmod > 0 {
+                    dims = typmod as u32;
+                }
+            }
+        }
+        if dims == 0 {
+            pgrx::warning!(
+                "HNSW: Could not determine vector dimensions from column type modifier, \
+                 defaulting to 384. Ensure column is defined as ruvector(N)."
+            );
+            dims = 384;
+        }
+        pgrx::log!("HNSW v2: Building index with {} dimensions", dims);
+        dims as usize
+    };
 
     // Parse options from WITH clause
     let options = get_hnsw_options_from_relation(index);
@@ -755,11 +845,11 @@ unsafe extern "C" fn hnsw_build(
         .unwrap_or(0);
 
     let mut meta = HnswMetaPage {
-        dimensions: dimensions as u32,
+        dimensions: dimensions as u32, // From atttypmod, refined on first tuple
         m: options.m as u16,
         m0: (options.m * 2) as u16,
         ef_construction: options.ef_construction as u32,
-        metric: metric_to_byte(config.metric),
+        metric: metric_to_byte(metric),
         recall_target: options.recall_target,
         build_timestamp,
         flags: if options.parallel_build {
@@ -1164,16 +1254,147 @@ unsafe fn search_layer_for_insert(
     result_vec
 }
 
+/// Write a node's neighbor list for a given layer to its page.
+/// The caller must ensure the buffer is exclusively locked.
+unsafe fn write_neighbors_to_page(
+    page: pg_sys::Page,
+    layer: usize,
+    neighbors: &[HnswNeighbor],
+    dimensions: usize,
+) {
+    let header = page as *const PageHeaderData;
+    let data_ptr = (header as *mut u8).add(size_of::<PageHeaderData>());
+
+    // Read current node header to get existing neighbor counts
+    let node_header = &mut *(data_ptr as *mut HnswNodePageHeader);
+
+    // Calculate offset to this layer's neighbor storage
+    let vector_size = dimensions * size_of::<f32>();
+    let neighbors_base = data_ptr
+        .add(size_of::<HnswNodePageHeader>())
+        .add(vector_size);
+
+    let mut offset = 0;
+    for l in 0..layer {
+        let count = node_header.neighbor_counts.get(l).copied().unwrap_or(0) as usize;
+        offset += count * size_of::<HnswNeighbor>();
+    }
+
+    // If this layer already has neighbors, we need to shift data for layers above.
+    // For simplicity during build (nodes are inserted sequentially), we write
+    // all neighbors for this layer by overwriting from the layer offset.
+    // This works correctly when layers are populated in order (high to low)
+    // as done by hnsw_insert_vector.
+    let old_count = node_header.neighbor_counts.get(layer).copied().unwrap_or(0) as usize;
+    let old_size = old_count * size_of::<HnswNeighbor>();
+    let new_size = neighbors.len() * size_of::<HnswNeighbor>();
+
+    // Shift higher-layer neighbor data if size changed
+    if new_size != old_size {
+        let mut higher_offset = offset + old_size;
+        let mut higher_size = 0;
+        for l in (layer + 1)..MAX_LAYERS {
+            let count = node_header.neighbor_counts.get(l).copied().unwrap_or(0) as usize;
+            higher_size += count * size_of::<HnswNeighbor>();
+        }
+        if higher_size > 0 {
+            let src = neighbors_base.add(higher_offset);
+            let dst = neighbors_base.add(offset + new_size);
+            ptr::copy(src, dst, higher_size);
+        }
+    }
+
+    // Write neighbor entries
+    let neighbors_ptr = neighbors_base.add(offset) as *mut HnswNeighbor;
+    for (i, neighbor) in neighbors.iter().enumerate() {
+        ptr::write(neighbors_ptr.add(i), *neighbor);
+    }
+
+    // Update neighbor count for this layer
+    if layer < MAX_LAYERS {
+        node_header.neighbor_counts[layer] = neighbors.len() as u8;
+    }
+}
+
 /// Connect a node to its neighbors bidirectionally
 unsafe fn connect_node_to_neighbors(
-    _index: Relation,
-    _node_block: BlockNumber,
-    _neighbors: &[HnswNeighbor],
-    _layer: usize,
-    _dimensions: usize,
+    index: Relation,
+    node_block: BlockNumber,
+    neighbors: &[HnswNeighbor],
+    layer: usize,
+    dimensions: usize,
 ) {
-    // TODO: Write neighbor connections to node pages
-    // This requires updating both the new node and existing neighbor nodes
+    if neighbors.is_empty() {
+        return;
+    }
+
+    // 1. Write forward connections: new node → neighbors
+    {
+        let buffer = pg_sys::ReadBuffer(index, node_block);
+        pg_sys::LockBuffer(buffer, pg_sys::BUFFER_LOCK_EXCLUSIVE as i32);
+        let page = pg_sys::BufferGetPage(buffer);
+
+        write_neighbors_to_page(page, layer, neighbors, dimensions);
+
+        pg_sys::MarkBufferDirty(buffer);
+        pg_sys::UnlockReleaseBuffer(buffer);
+    }
+
+    // 2. Write backward connections: each neighbor → new node
+    let max_neighbors = if layer == 0 {
+        MAX_NEIGHBORS_L0
+    } else {
+        MAX_NEIGHBORS
+    };
+
+    for neighbor in neighbors {
+        let buffer = pg_sys::ReadBuffer(index, neighbor.block_num);
+        pg_sys::LockBuffer(buffer, pg_sys::BUFFER_LOCK_EXCLUSIVE as i32);
+        let page = pg_sys::BufferGetPage(buffer);
+
+        // Read current neighbor list for this layer
+        let header_ptr = (page as *const u8).add(size_of::<PageHeaderData>());
+        let node_header = &*(header_ptr as *const HnswNodePageHeader);
+        let existing_count = node_header.neighbor_counts.get(layer).copied().unwrap_or(0) as usize;
+
+        let vector_size = dimensions * size_of::<f32>();
+        let neighbors_base = header_ptr
+            .add(size_of::<HnswNodePageHeader>())
+            .add(vector_size);
+
+        let mut layer_offset = 0;
+        for l in 0..layer {
+            let count = node_header.neighbor_counts.get(l).copied().unwrap_or(0) as usize;
+            layer_offset += count * size_of::<HnswNeighbor>();
+        }
+
+        let existing_ptr = neighbors_base.add(layer_offset) as *const HnswNeighbor;
+        let mut existing: Vec<HnswNeighbor> = Vec::with_capacity(existing_count + 1);
+        for i in 0..existing_count {
+            existing.push(ptr::read(existing_ptr.add(i)));
+        }
+
+        // Add the new reverse connection
+        existing.push(HnswNeighbor {
+            block_num: node_block,
+            distance: neighbor.distance,
+        });
+
+        // Prune if over capacity: keep the closest neighbors
+        if existing.len() > max_neighbors {
+            existing.sort_by(|a, b| {
+                a.distance
+                    .partial_cmp(&b.distance)
+                    .unwrap_or(Ordering::Equal)
+            });
+            existing.truncate(max_neighbors);
+        }
+
+        write_neighbors_to_page(page, layer, &existing, dimensions);
+
+        pg_sys::MarkBufferDirty(buffer);
+        pg_sys::UnlockReleaseBuffer(buffer);
+    }
 }
 
 /// Bulk delete callback
@@ -1363,6 +1584,17 @@ unsafe extern "C" fn hnsw_beginscan(
 
     let scan = pg_sys::RelationGetIndexScan(index, nkeys, norderbys);
 
+    // Allocate ORDER BY distance arrays (required by the AM, not done by
+    // RelationGetIndexScan). See GiST's gistbeginscan for reference.
+    if (*scan).numberOfOrderBys > 0 {
+        let n = (*scan).numberOfOrderBys as usize;
+        (*scan).xs_orderbyvals =
+            pg_sys::palloc0(std::mem::size_of::<pg_sys::Datum>() * n) as *mut pg_sys::Datum;
+        (*scan).xs_orderbynulls = pg_sys::palloc(std::mem::size_of::<bool>() * n) as *mut bool;
+        // Initialize all ORDER BY values as null (true = null)
+        std::ptr::write_bytes((*scan).xs_orderbynulls, 1u8, n);
+    }
+
     // Get metadata for dimensions and metric
     let (meta_page, meta_buffer) = get_meta_page(index);
     let meta = read_metadata(meta_page);
@@ -1398,6 +1630,14 @@ unsafe extern "C" fn hnsw_rescan(
     state.current_pos = 0;
     state.search_done = false;
     state.query_valid = false; // Reset validity flag
+
+    // Non-kNN scan (e.g., COUNT(*), WHERE embedding IS NOT NULL)
+    // When there are no ORDER BY operators, we cannot perform a vector search.
+    // Return early and let hnsw_gettuple return false, forcing PostgreSQL to
+    // fall back to a sequential scan. Fixes #152.
+    if norderbys <= 0 || orderbys.is_null() {
+        return;
+    }
 
     // Extract query vector from ORDER BY
     if norderbys > 0 && !orderbys.is_null() {
@@ -1483,6 +1723,9 @@ unsafe extern "C" fn hnsw_rescan(
     }
 
     // Validate query vector - CRITICAL: Prevent crashes from invalid queries
+    // Note: if query_valid is false due to norderbys==0 (non-kNN scan),
+    // we already returned early above. This check only fires for kNN scans
+    // where vector extraction genuinely failed.
     if !state.query_valid || state.query_vector.is_empty() {
         // Instead of using zeros which crash, raise a proper error
         pgrx::error!(
@@ -1577,6 +1820,13 @@ unsafe extern "C" fn hnsw_gettuple(scan: IndexScanDesc, direction: ScanDirection
     let state = &mut *((*scan).opaque as *mut HnswScanState);
     let index = (*scan).indexRelation;
 
+    // Non-kNN scan: no query vector was provided (e.g., COUNT(*), WHERE IS NOT NULL).
+    // Return false to tell PostgreSQL this index cannot satisfy this scan type,
+    // forcing fallback to sequential scan. Fixes #152.
+    if !state.query_valid && !state.search_done {
+        return false;
+    }
+
     // Execute search on first call
     if !state.search_done {
         let (meta_page, meta_buffer) = get_meta_page(index);
@@ -1607,16 +1857,24 @@ unsafe extern "C" fn hnsw_gettuple(scan: IndexScanDesc, direction: ScanDirection
         // Set tuple ID
         (*scan).xs_heaptid = tid;
 
-        // Set ORDER BY value (distance) if available
+        // Set ORDER BY value (distance) — arrays allocated in beginscan
         if !(*scan).xs_orderbynulls.is_null() {
             *(*scan).xs_orderbynulls.add(0) = false;
         }
-
         if !(*scan).xs_orderbyvals.is_null() {
-            *(*scan).xs_orderbyvals.add(0) = pg_sys::Float8GetDatum(distance as f64);
+            // Inline Float8GetDatum: reinterpret f64 bits as Datum (avoids FFI overhead)
+            *(*scan).xs_orderbyvals.add(0) =
+                pg_sys::Datum::from((distance as f64).to_bits() as usize);
         }
 
         (*scan).xs_recheck = false;
+        // Do NOT set xs_recheckorderby = true. PG17's IndexNextWithReorder
+        // compares recalculated distances (from heap tuples) against index-reported
+        // distances. Floating-point precision differences between index-stored
+        // vectors and heap vectors cause spurious "index returned tuples in wrong
+        // order" errors. With recheckorderby = false the executor trusts our
+        // ordering directly, which is correct since we sort results in hnsw_search.
+        (*scan).xs_recheckorderby = false;
 
         true
     } else {
@@ -1636,16 +1894,21 @@ unsafe extern "C" fn hnsw_getbitmap(_scan: IndexScanDesc, _tbm: *mut TIDBitmap) 
 unsafe extern "C" fn hnsw_endscan(scan: IndexScanDesc) {
     pgrx::debug1!("HNSW v2: End scan");
 
-    // Free scan state
-    let state = Box::from_raw((*scan).opaque as *mut HnswScanState);
-    drop(state);
+    // Free scan state and null out pointer to prevent use-after-free
+    if !(*scan).opaque.is_null() {
+        let state = Box::from_raw((*scan).opaque as *mut HnswScanState);
+        drop(state);
+        (*scan).opaque = std::ptr::null_mut();
+    }
 }
 
 /// Can return callback - indicates if index can return indexed data
 #[pg_guard]
-unsafe extern "C" fn hnsw_canreturn(_index: Relation, attno: ::std::os::raw::c_int) -> bool {
-    // HNSW can return the vector column (attribute 1)
-    attno == 1
+unsafe extern "C" fn hnsw_canreturn(_index: Relation, _attno: ::std::os::raw::c_int) -> bool {
+    // HNSW does not support returning indexed data directly (no index-only scans).
+    // Returning true here caused PostgreSQL to set up index-only scan paths which
+    // initialize the scan descriptor differently, leading to corrupted xs_orderbyvals.
+    false
 }
 
 /// Options callback - parse index options from WITH clause

@@ -8,86 +8,253 @@
 [![ruv.io](https://img.shields.io/badge/ruv.io-website-purple.svg)](https://ruv.io)
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-**The vector database that gets smarter the more you use it.**
+### **The self-learning, self-optimizing vector database — with graph intelligence, local AI, and PostgreSQL built in.**
 
 ```bash
 npx ruvector
 ```
 
-Most vector databases are static—they store embeddings and search them. That's it. RuVector is different: it learns from every query, runs LLMs locally, scales horizontally, and costs nothing to operate.
+####  Most vector databases store your data and search it — the same way, every time. 
 
-| | Pinecone/Weaviate | RuVector |
-|---|---|---|
-| **Search improves over time** | ❌ | ✅ GNN layers learn from usage |
-| **Run LLMs locally** | ❌ | ✅ ruvllm + RuvLTRA models ($0) |
-| **Graph queries (Cypher)** | ❌ | ✅ `MATCH (a)-[:SIMILAR]->(b)` |
-| **Self-learning AI hooks** | ❌ | ✅ Q-learning, HNSW memory |
-| **Real-time graph updates** | ❌ Rebuild index | ✅ Dynamic min-cut (no rebuild) |
-| **Horizontal scaling** | 💰 Paid | ✅ Raft consensus, free |
-| **Works offline** | ❌ | ✅ Browser, edge, embedded |
+#### **RuVector** is fundamentally different. It watches how you use it and gets smarter: search results improve automatically, the system tunes itself to your workload, and it runs AI models right on your hardware — no cloud APIs, no per-query bills, GPUs optional, CPUs preferred. It drops into PostgreSQL, runs in browsers, and ships as a single file. 
 
-**One package. Everything included:** vector search, graph queries, GNN learning, distributed clustering, local LLMs, 39 attention mechanisms, and WASM support.
+Open source. ❤️ Free forever.
+
+```
+User Query → [SONA Engine] → Model Response → User Feedback
+                  ↑                                 │
+                  └─────── Learning Signal ─────────┘
+                         (< 1ms adaptation)
+```
 
 <details>
-<summary>📋 See Full Capabilities (30+ features)</summary>
+<summary>🔍 RuVector vs Typical Vector Databases (20 differences)</summary>
+
+| | RuVector | Typical Vector DB |
+|---|---|---|
+| **Self-Learning & Optimization** | | |
+| [Search quality](./crates/ruvector-gnn) | 🧠 GNN learns from every query — results improve over time | Static — same results every time |
+| [Self-optimizing](./crates/sona) | ⚡ SONA auto-tunes routing, ranking, and compression to your workload | Manual tuning required |
+| [46 attention mechanisms](./crates/ruvector-attention) | 🎯 Flash, linear, graph, hyperbolic, [mincut-gated](./crates/ruvector-attn-mincut) (cuts compute 50%) | Basic similarity only |
+| [Transfer learning](./crates/ruvector-domain-expansion) | 🔄 Knowledge transfers across domains — new tasks bootstrap from past learning | Start from scratch each time |
+| **Graph & Relationships** | | |
+| [Graph queries](./crates/ruvector-graph) | 🔗 Full Cypher engine — `MATCH (a)-[:KNOWS]->(b)` like Neo4j | Flat list of results |
+| [Graph transformers](./crates/ruvector-graph-transformer) | 🔬 8 verified modules: physics, bio, manifold, temporal, economic | No graph support |
+| [Hyperedges](./crates/ruvector-graph) | 🕸️ Connect 3+ nodes at once — model group relationships natively | Pairwise only |
+| **AI & Compute** | | |
+| [Local LLMs](./crates/ruvllm) | 🤖 Run models on your hardware — Metal, CUDA, WebGPU, no API costs | Cloud API required (pay per call) |
+| [Sublinear solvers](./crates/ruvector-solver) | 📐 O(log n) PageRank, spectral methods, sparse linear systems | Not available |
+| [Genomics](./examples/dna) | 🧬 Variant calling, protein translation, HNSW k-mer search in 12 ms | Not available |
+| [Quantum coherence](./crates/ruqu) | ⚛️ Error correction via dynamic min-cut optimization | Not available |
+| **Database & Platform** | | |
+| [PostgreSQL](./crates/ruvector-postgres) | 🐘 230+ SQL functions — drop into your existing database, [pgvector replacement](./docs/postgres/) | Separate service to manage |
+| [Deploy anywhere](./crates/rvf/README.md) | 🌐 One file — servers, browsers, phones, IoT, bare metal, WASM (58 KB) | Cloud server required |
+| [Cognitive containers](./crates/rvf/README.md) | 🚀 Single `.rvf` file boots as a service in 125 ms — includes vectors, models, kernel | Configure a cluster |
+| [Live updates](./crates/ruvector-core) | ⚡ Update vectors and graph connections instantly, no downtime | Rebuild index or wait |
+| **Operations** | | |
+| [Tamper-proof audit](./crates/rvf/rvf-crypto) | 🔐 Cryptographic witness chain records every operation automatically | Manual logging |
+| [Branch your data](./crates/rvf/rvf-cow) | 🌿 Git-like COW branching — 1M vectors, 100 edits = ~2.5 MB branch | Copy everything |
+| [Scale out](./crates/ruvector-replication) | 📈 Raft consensus, multi-master replication, auto-sharding | Paid tiers, per-vector pricing |
+| [Post-quantum crypto](./crates/rvf/rvf-crypto) | 🛡️ ML-DSA-65 and Ed25519 signatures on every segment | Not available |
+| Cost | 💰 Free forever — open source (MIT) | Per-query or per-vector pricing |
+
+</details>
+
+<details>
+<summary>📋 See Full Capabilities (75 features across 10 categories)</summary>
 
 **Core Vector Database**
 | # | Capability | What It Does |
 |---|------------|--------------|
-| 1 | **Store vectors** | Embeddings from OpenAI, Cohere, local ONNX with HNSW indexing |
-| 2 | **Query with Cypher** | Graph queries like Neo4j (`MATCH (a)-[:SIMILAR]->(b)`) |
-| 3 | **The index learns** | GNN layers make search results improve over time |
-| 4 | **Hyperbolic HNSW** | Hierarchical data in hyperbolic space for better tree structures |
-| 5 | **Compress automatically** | 2-32x memory reduction with adaptive tiered compression |
+| 1 | [**Store vectors**](./crates/ruvector-core) | Embeddings from OpenAI, Cohere, local ONNX with HNSW indexing and SIMD acceleration |
+| 2 | [**Query with Cypher**](./crates/ruvector-graph) | Graph queries like Neo4j — `MATCH (a)-[:SIMILAR]->(b)` with hyperedges |
+| 3 | [**The index learns**](./crates/ruvector-gnn) | GNN layers make search results improve over time — every query teaches the system |
+| 4 | [**Hyperbolic HNSW**](./crates/ruvector-hyperbolic-hnsw) | Hierarchy-aware search in Poincare ball space — better for trees and taxonomies |
+| 5 | [**Compress automatically**](./crates/ruvector-temporal-tensor) | 2-32x memory reduction with adaptive tiered compression and temporal tensor reuse |
+| 6 | [**Metadata filtering**](./crates/ruvector-filter) | Filter search results by any field before scanning vectors — fast hybrid queries |
+| 7 | [**Collections**](./crates/ruvector-collections) | Multi-tenant, schema-managed collections — isolate data per customer or project |
+| 8 | [**Snapshots**](./crates/ruvector-snapshot) | Point-in-time backups — restore your database to any previous state |
 
 **Distributed Systems**
 | # | Capability | What It Does |
 |---|------------|--------------|
-| 6 | **Raft consensus** | Leader election, log replication, fault-tolerant coordination |
-| 7 | **Multi-master replication** | Vector clocks, conflict resolution, geo-distributed sync |
-| 8 | **Burst scaling** | 10-50x capacity scaling for traffic spikes |
-| 9 | **Auto-sharding** | Automatic data partitioning across nodes |
+| 9 | [**Raft consensus**](./crates/ruvector-raft) | Leader election and log replication — nodes agree on state even when some fail |
+| 10 | [**Multi-master replication**](./crates/ruvector-replication) | Vector clocks, conflict resolution, geo-distributed sync across data centers |
+| 11 | [**Cluster management**](./crates/ruvector-cluster) | Horizontal scaling with consistent hashing — add nodes without rebalancing everything |
+| 12 | [**Delta consensus**](./crates/ruvector-delta-consensus) | Track behavioral changes across distributed nodes with CRDTs and causal ordering |
+| 13 | **Burst scaling** | 10-50x capacity scaling for traffic spikes — absorb load then scale back down |
+| 14 | **Auto-sharding** | Automatic data partitioning across nodes based on access patterns |
 
 **AI & Machine Learning**
 | # | Capability | What It Does |
 |---|------------|--------------|
-| 10 | **Run LLMs locally** | ruvllm with GGUF, Metal/CUDA/ANE acceleration |
-| 11 | **RuvLTRA models** | Pre-trained GGUF for routing & embeddings (<10ms) → [HuggingFace](https://huggingface.co/ruv/ruvltra) |
-| 12 | **SONA learning** | Self-Optimizing Neural Architecture with LoRA, EWC++ |
-| 13 | **39 attention mechanisms** | Flash, linear, graph, hyperbolic, mincut-gated (50% compute) |
-| 14 | **Spiking neural networks** | Event-driven neuromorphic computing |
-| 15 | **Mincut-gated transformer** | Dynamic attention via graph min-cut optimization |
-| 16 | **Route AI requests** | Semantic routing + FastGRNN for LLM optimization |
+| 15 | [**Run LLMs locally**](./crates/ruvllm) | Load GGUF models and run inference on your hardware — Metal, CUDA, ANE, WebGPU |
+| 16 | [**RuvLTRA models**](https://huggingface.co/ruv/ruvltra) | Pre-trained GGUF for routing and embeddings in under 10 ms |
+| 17 | [**SONA learning**](./crates/sona) | Self-Optimizing Neural Architecture — LoRA fine-tuning + EWC++ memory preservation |
+| 18 | [**46 attention mechanisms**](./crates/ruvector-attention) | Flash, linear, graph, hyperbolic, mincut-gated (cuts compute 50%) |
+| 19 | [**Semantic routing**](./crates/ruvector-router-core) | Route AI requests to the right model or handler using FastGRNN neural inference |
+| 20 | [**Sparse inference**](./crates/ruvector-sparse-inference) | PowerInfer-style engine — only activate the neurons you need, 2-10x faster on edge |
+| 21 | [**Tiny Dancer**](./crates/ruvector-tiny-dancer-core) | Production-grade agent routing with FastGRNN — lightweight alternative to full LLM |
+| 22 | [**Domain expansion**](./crates/ruvector-domain-expansion) | Cross-domain transfer learning — new tasks bootstrap from past learning automatically |
+| 23 | [**Advanced math**](./crates/ruvector-math) | Optimal transport, Sinkhorn distances, KL divergence, spectral clustering |
+| 24 | [**Coherence measurement**](./crates/ruvector-coherence) | Measure signal quality and compare attention mechanisms objectively |
+
+**Graph Transformers** ([8 verified modules](./crates/ruvector-graph-transformer))
+| # | Capability | What It Does |
+|---|------------|--------------|
+| 25 | [**Proof-gated mutation**](./crates/ruvector-verified) | Every write to graph state requires a formal proof — bugs cannot corrupt data |
+| 26 | **Sublinear attention** | O(n log n) via LSH bucketing, PPR sampling, and spectral sparsification |
+| 27 | **Physics-informed layers** | Hamiltonian dynamics, gauge equivariant message passing — energy conserved by construction |
+| 28 | **Biological layers** | Spiking attention, Hebbian/STDP learning, dendritic branching |
+| 29 | **Self-organizing layers** | Morphogenetic fields, reaction-diffusion growth — graphs that restructure themselves |
+| 30 | **Verified training** | Training certificates, delta-apply rollback — bad gradient steps auto-reversed |
+| 31 | **Manifold geometry** | Product manifolds S^n x H^m x R^k — work in curved spaces, not just flat |
+| 32 | **Temporal-causal layers** | Causal masking, Granger causality extraction, continuous-time ODE integration |
+| 33 | **Economic layers** | Nash equilibrium attention, Shapley attribution — fair value assignment in multi-agent graphs |
+
+**Cognitive Containers** ([RVF format](./crates/rvf/README.md))
+| # | Capability | What It Does |
+|---|------------|--------------|
+| 34 | **Self-boot as a microservice** | A single `.rvf` file contains vectors, models, and a Linux kernel — boots in 125 ms |
+| 35 | **eBPF acceleration** | Hot vectors served in kernel data path via XDP, socket filter, and TC programs |
+| 36 | **5.5 KB WASM runtime** | Same `.rvf` file runs queries in a browser tab with zero backend |
+| 37 | [**COW branching**](./crates/rvf) | Git-like copy-on-write — 1M vectors, 100 edits = ~2.5 MB branch |
+| 38 | [**Witness chains**](./crates/rvf/rvf-crypto) | Tamper-evident hash-linked audit trail records every operation automatically |
+| 39 | [**Post-quantum signatures**](./crates/rvf/rvf-crypto) | ML-DSA-65 and SLH-DSA-128s alongside Ed25519 — future-proof cryptography |
+| 40 | **DNA-style lineage** | Track parent/child derivation chains with cryptographic hashes |
+| 41 | **25 segment types** | VEC, INDEX, KERNEL, EBPF, WASM, COW_MAP, WITNESS, CRYPTO, and 17 more |
+
+**PostgreSQL Extension** ([230+ SQL functions](./crates/ruvector-postgres))
+| # | Capability | What It Does |
+|---|------------|--------------|
+| 42 | **Drop-in pgvector replacement** | Same SQL interface but with self-learning search — no app changes needed |
+| 43 | **Sublinear solvers in SQL** | PageRank, conjugate gradient, Laplacian solver — O(log n) to O(sqrt(n)) |
+| 44 | **Math distances in SQL** | Wasserstein, Sinkhorn, KL divergence, spectral clustering — all from SQL |
+| 45 | **Topological data analysis** | Persistent homology, Betti numbers, embedding drift detection |
+| 46 | **SONA learning in SQL** | Micro-LoRA trajectory learning with EWC++ forgetting prevention |
+| 47 | **Extended attention in SQL** | O(n) linear, MoE, hyperbolic, sliding window attention — all callable from SQL |
 
 **Specialized Processing**
 | # | Capability | What It Does |
 |---|------------|--------------|
-| 17 | **SciPix OCR** | LaTeX/MathML extraction from scientific documents |
-| 18 | **DAG workflows** | Self-learning directed acyclic graph execution |
-| 19 | **Cognitum Gate** | Cognitive AI gateway with TileZero acceleration |
-| 20 | **FPGA transformer** | Hardware-accelerated transformer inference |
-| 21 | **Quantum coherence** | ruQu for quantum error correction via dynamic min-cut |
+| 48 | [**SciPix OCR**](./examples/scipix) | Extract LaTeX and MathML from scientific documents and PDFs |
+| 49 | [**DAG workflows**](./crates/ruvector-dag) | Self-learning directed acyclic graph execution for multi-step pipelines |
+| 50 | [**Cognitum Gate**](./crates/cognitum-gate-kernel) | Cognitive AI gateway with TileZero acceleration for fast routing |
+| 51 | [**FPGA transformer**](./crates/ruvector-fpga-transformer) | Hardware-accelerated transformer inference on programmable chips |
+| 52 | [**Quantum coherence**](./crates/ruQu) | Error correction via dynamic min-cut optimization for quantum circuits |
+| 53 | [**Sublinear solvers**](./crates/ruvector-solver) | 8 algorithms (Neumann, CG, Forward Push, TRUE, BMSSP) — O(log n) to O(sqrt(n)) |
+| 54 | [**Mincut-gated transformer**](./crates/ruvector-mincut-gated-transformer) | Dynamic attention that prunes irrelevant connections using graph min-cut |
+| 55 | [**Nervous system**](./crates/ruvector-nervous-system) | 5-layer bio-inspired adaptive system with spiking networks and BTSP learning |
+| 56 | [**Prime Radiant**](./crates/prime-radiant) | Coherence engine using sheaf Laplacian math for AI safety and hallucination detection |
+
+**Genomics & Health** ([rvDNA](./examples/dna))
+| # | Capability | What It Does |
+|---|------------|--------------|
+| 57 | **rvDNA genomic analysis** | Variant calling, protein translation, HNSW k-mer search in 12 ms |
+| 58 | **`.rvdna` file format** | AI-native binary with pre-computed vectors, tensors, and embeddings |
+| 59 | **Instant diagnostics** | Sickle cell, cancer mutations, drug dosing — runs on any device |
+| 60 | **Privacy-first WASM** | Browser-based genomics — your DNA data never leaves the device |
+| 61 | **Biomarker engine** | Composite polygenic risk scoring (20 SNPs, 6 gene-gene interactions, 2 us) |
+| 62 | **Streaming biomarkers** | Real-time anomaly detection, CUSUM changepoints, trend analysis (>100k readings/sec) |
 
 **Platform & Integration**
 | # | Capability | What It Does |
 |---|------------|--------------|
-| 22 | **Run anywhere** | Node.js, browser (WASM), edge (rvLite), HTTP server, Rust |
-| 23 | **Drop into Postgres** | pgvector-compatible extension with SIMD acceleration |
-| 24 | **MCP integration** | Model Context Protocol server for AI assistant tools |
-| 25 | **Cloud deployment** | One-click deploy to Cloud Run, Kubernetes |
+| 63 | **Run anywhere** | Rust, Node.js, browser (WASM), edge ([rvLite](./crates/rvlite)), HTTP server, bare metal |
+| 64 | [**MCP server**](./crates/mcp-gate) | Model Context Protocol for AI assistants — Claude, GPT, and other agents can use RuVector as a tool |
+| 65 | **Cloud deployment** | One-click deploy to [Google Cloud Run](./examples/google-cloud), Kubernetes |
+| 66 | [**iOS App Clip**](./examples/app-clip) | Scan a QR code to load an RVF cognitive seed on your phone — under 15 MB |
+| 67 | [**Prometheus metrics**](./crates/ruvector-metrics) | Built-in monitoring — export latency, throughput, and memory stats to Grafana |
+| 68 | **90+ Rust crates + npm packages** | Published on [crates.io](https://crates.io/crates/rvf-runtime) and [npm](https://www.npmjs.com/package/@ruvector/rvf) |
 
-**Self-Learning & Adaptation**
+**Examples & Applications**
 | # | Capability | What It Does |
 |---|------------|--------------|
-| 26 | **Self-learning hooks** | Q-learning, neural patterns, HNSW memory |
-| 27 | **ReasoningBank** | Trajectory learning with verdict judgment |
-| 28 | **Economy system** | Tokenomics, CRDT-based distributed state |
-| 29 | **Nervous system** | Event-driven reactive architecture |
-| 30 | **Agentic synthesis** | Multi-agent workflow composition |
+| 69 | [**Neural Trader**](./examples/neural-trader) | Algorithmic trading with Kelly Criterion position sizing and LSTM-Transformer prediction |
+| 70 | [**Spiking Neural Network**](./examples/meta-cognition-spiking-neural-network) | Hybrid AI combining spiking networks, SIMD vector ops, and 5 attention types |
+| 71 | [**ReFrag Pipeline**](./examples/refrag-pipeline) | Compress-Sense-Expand architecture — ~30x RAG latency reduction |
+| 72 | [**Edge Network**](./examples/edge-net) | Distributed collective AI — share idle compute across devices |
+| 73 | [**Vibecast 7Sense**](./examples/vibecast-7sense) | Transform bird calls into navigable geometric space using vector search |
+| 74 | [**Ultra-Low Latency Sim**](./examples/ultra-low-latency-sim) | Meta-simulation achieving quadrillion simulations per second on CPU with SIMD |
+| 75 | [**Verified Applications**](./examples/verified-applications) | 10 exotic proof-carrying apps: weapons filters, legal forensics, medical diagnostics |
 
 </details>
 
-*Think of it as: **Pinecone + Neo4j + PyTorch + llama.cpp + postgres + etcd** — in one Rust package.*
+### A Complete AI Operating System
+
+RuVector isn't a database you add to your stack — it's the entire stack. Self-learning, self-optimizing, and self-deploying. Everything an AI application needs to run, from bare metal hardware up to the application layer, in one package:
+
+| | Layer | Replaces | What It Does |
+|---|-------|----------|--------------|
+| 🔄 | **Self-Learning** | Manual retraining, MLOps | SONA adapts in <1 ms — LoRA fine-tuning + EWC++ memory on every request |
+| ⚡ | **Self-Optimizing** | Manual tuning, config files | Auto-tunes routing, ranking, compression, and index parameters to your workload |
+| 🔧 | **Hardware** | CUDA toolkit, driver configs | Optimized for sparse/spiking CPU (AVX-512, NEON) — GPU for bursts (Metal, CUDA, ANE, WebGPU, FPGA) |
+| 🐧 | **Kernel** | Linux + Docker + eBPF | `.rvf` file boots its own Linux kernel in 125 ms — eBPF accelerates hot paths |
+| 🗄️ | **Storage** | Separate database + cache | Vector store, graph DB, key-value cache, and 230+ SQL functions (drops into PostgreSQL) |
+| 🔍 | **Search** | Pinecone, Weaviate, Qdrant | Self-learning HNSW — GNN improves results from every query automatically |
+| 🔗 | **Graph** | Separate graph database | Cypher (Neo4j-compatible), W3C SPARQL 1.1, hyperedges — all built in |
+| 🤖 | **AI Runtime** | llama.cpp, vLLM, Ollama | ruvllm — GGUF models, MicroLoRA tuning (<1 ms), speculative decoding, continuous batching, WASM |
+| 🧠 | **ML Framework** | PyTorch, TensorFlow | 46 attention types, 8 graph transformer modules, spiking networks, sparse inference, sublinear solvers, hyperbolic embeddings, domain expansion, quantum coherence |
+| 🌐 | **Coordination** | etcd, ZooKeeper, Consul | Raft consensus, multi-master replication, CRDT delta sync, auto-sharding |
+| 📦 | **Packaging** | Docker, Kubernetes | One `.rvf` file = your entire service — servers, browsers, phones, IoT, bare metal |
+| 🔐 | **Security** | Vault, manual audit logs | Post-quantum crypto (ML-DSA-65, Ed25519), SHAKE-256, witness chains, hardware attestation, formal verification, cryptographic lineage |
+
+The [RVF cognitive container](./crates/rvf/README.md) ties it all together: a single file that packages your vectors, models, data, and a bootable kernel. Drop it on any machine and it starts serving in 125 ms — no install, no dependencies. It branches like Git (only changes are copied), logs every operation in a tamper-proof chain, and runs anywhere from a browser to bare metal.
+
+---
+
+## How the GNN Works
+
+Traditional vector search:
+```
+Query → HNSW Index → Top K Results
+```
+
+RuVector with GNN:
+```
+Query → HNSW Index → GNN Layer → Enhanced Results
+                ↑                      │
+                └──── learns from ─────┘
+```
+
+The GNN layer:
+1. Takes your query and its nearest neighbors
+2. Applies multi-head attention to weigh which neighbors matter
+3. Updates representations based on graph structure
+4. Returns better-ranked results
+
+Over time, frequently-accessed paths get reinforced, making common queries faster and more accurate.
+
+
+## Quick Start
+
+### One-Line Install
+
+```bash
+# Interactive installer - lists all packages
+npx ruvector install
+
+# Or install directly
+npm install ruvector
+npx ruvector
+
+# Self-learning hooks for Claude Code
+npx @ruvector/cli hooks init
+npx @ruvector/cli hooks install
+
+# LLM runtime (SONA learning, HNSW memory)
+npm install @ruvector/ruvllm
+```
+
+### Node.js / Browser
+
+```bash
+# Install
+npm install ruvector
+
+# Or try instantly
+npx ruvector
+```
 
 ---
 
@@ -146,116 +313,236 @@ npm install agentic-flow
 
 </details>
 
+<details>
+<summary><strong>rvDNA</strong> — AI-native genomic diagnostics, instant and available to everyone</summary>
+
+**Using AI to make the world a healthier place.** rvDNA puts genomic diagnostics on any device — a phone, a laptop, a browser tab — in 12 milliseconds. No cloud, no GPU, no subscription. Private by default.
+
+```bash
+cargo add rvdna              # Rust
+npm install @ruvector/rvdna  # JavaScript / TypeScript
+```
+
+| What It Does | How |
+|---|---|
+| Find mutations (sickle cell, cancer) | Bayesian variant calling, 155 ns/SNP |
+| Translate DNA to protein | Full codon table + GNN contact graphs |
+| Predict biological age | Horvath clock, 353 CpG sites |
+| Recommend drug doses | CYP2D6 star alleles + CPIC guidelines |
+| Score health risks | 20 SNPs, 6 gene-gene interactions, composite risk scoring in 2 us |
+| Stream biomarker data | Real-time anomaly detection, CUSUM changepoints, >100k readings/sec |
+| Search genomes by similarity | HNSW k-mer vectors, O(log N) |
+| Store pre-computed AI features | `.rvdna` binary format — open and instant |
+
+- **Rust crate**: [crates.io/crates/rvdna](https://crates.io/crates/rvdna)
+- **npm package**: [@ruvector/rvdna](https://www.npmjs.com/package/@ruvector/rvdna) (NAPI-RS native + JS fallback)
+- **Source**: [examples/dna](./examples/dna)
+
+</details>
+
+<details>
+<summary><strong>RVF Cognitive Containers</strong> — One file that stores, boots, and proves everything</summary>
+
+**[RVF (RuVector Format)](./crates/rvf/README.md)** is a universal binary substrate that merges database, model, graph engine, kernel, and attestation into a single deployable file. A `.rvf` file can store vector embeddings, carry LoRA adapter deltas, embed GNN graph state, include a bootable Linux microkernel, run queries in a 5.5 KB WASM runtime, and prove every operation through a cryptographic witness chain — all in one file that runs anywhere from a browser to bare metal.
+
+This is not a database format. It is an **executable knowledge unit**.
+
+```bash
+cargo install rvf-cli                          # CLI tool
+cargo add rvf-runtime                          # Rust library
+npm install @ruvector/rvf                      # TypeScript SDK
+npx @ruvector/rvf-mcp-server --transport stdio # MCP server for AI agents
+```
+
+| What It Does | How |
+|---|---|
+| Self-boot as a microservice | Real Linux kernel in the file, boots in 125 ms on QEMU/KVM |
+| Hardware-speed lookups | eBPF programs (XDP, TC, socket filter) bypass userspace entirely |
+| Run in any browser | 5.5 KB WASM runtime, zero backend |
+| Git-like branching | COW at cluster granularity — 1M vectors, 100 edits = ~2.5 MB child |
+| Tamper-evident audit | Hash-linked witness chain for every insert, query, and deletion |
+| Post-quantum signatures | ML-DSA-65 and Ed25519 signing on every segment |
+| DNA-style lineage | Parent/child derivation chains with cryptographic verification |
+| 24 segment types | VEC, INDEX, KERNEL, EBPF, WASM, COW_MAP, WITNESS, CRYPTO, and 16 more |
+
+**Rust crates** (22): [`rvf-types`](https://crates.io/crates/rvf-types) `rvf-wire` `rvf-manifest` `rvf-quant` `rvf-index` `rvf-crypto` [`rvf-runtime`](https://crates.io/crates/rvf-runtime) `rvf-kernel` `rvf-ebpf` `rvf-launch` `rvf-server` `rvf-import` [`rvf-cli`](https://crates.io/crates/rvf-cli) `rvf-wasm` `rvf-solver-wasm` `rvf-node` + 6 adapters (claude-flow, agentdb, ospipe, agentic-flow, rvlite, sona)
+
+**npm packages** (4): [`@ruvector/rvf`](https://www.npmjs.com/package/@ruvector/rvf) [`@ruvector/rvf-node`](https://www.npmjs.com/package/@ruvector/rvf-node) [`@ruvector/rvf-wasm`](https://www.npmjs.com/package/@ruvector/rvf-wasm) [`@ruvector/rvf-mcp-server`](https://www.npmjs.com/package/@ruvector/rvf-mcp-server)
+
+- **Security Hardened RVF** ([`examples/security_hardened.rvf`](./examples/security_hardened.rvf)) — 2.1 MB sealed artifact with 22 verified capabilities: TEE attestation (SGX/SEV-SNP/TDX/ARM CCA), AIDefence (injection/jailbreak/PII/exfil), hardened Linux microkernel, eBPF firewall, Ed25519 signing, 6-role RBAC, Coherence Gate, 30-entry witness chain, Paranoid policy, COW branching, audited k-NN. See [ADR-042](./docs/adr/ADR-042-Security-RVF-AIDefence-TEE.md).
+- **Full documentation**: [crates/rvf/README.md](./crates/rvf/README.md)
+- **ADR-030**: [Cognitive Container Architecture](./docs/adr/ADR-030-rvf-cognitive-container.md)
+- **ADR-031**: [COW Branching & Real Containers](./docs/adr/ADR-031-rvcow-branching-and-real-cognitive-containers.md)
+- **ADR-042**: [Security RVF — AIDefence + TEE](./docs/adr/ADR-042-Security-RVF-AIDefence-TEE.md)
+- **56 runnable examples**: [examples/rvf/examples/](./examples/rvf/examples/)
+
+</details>
+
+<details>
+<summary><strong>Sublinear-Time Solver</strong> — O(log n) sparse linear systems for graph analytics and AI</summary>
+
+**[ruvector-solver](./crates/ruvector-solver/README.md)** provides 8 iterative algorithms for sparse linear systems, achieving O(log n) to O(√n) complexity — orders of magnitude faster than dense O(n³) solvers. Powers Prime Radiant coherence, GNN message passing, spectral methods, and PageRank computation.
+
+```bash
+cargo add ruvector-solver --features all-algorithms
+```
+
+| Algorithm | Complexity | Best For |
+|-----------|-----------|----------|
+| **Neumann Series** | O(k · nnz) | Diagonally dominant, fast convergence |
+| **Conjugate Gradient** | O(√κ · log(1/ε) · nnz) | Gold-standard SPD solver |
+| **Forward Push** | O(1/ε) | Single-source PageRank |
+| **Backward Push** | O(1/ε) | Reverse relevance computation |
+| **Hybrid Random Walk** | O(√n/ε) | Pairwise relevance, Monte Carlo |
+| **TRUE** | O(log n) amortized | Large-scale Laplacian systems |
+| **BMSSP** | O(nnz · log n) | Multigrid hierarchical solve |
+| **Auto Router** | Automatic | Selects optimal algorithm |
+
+**Key optimizations**: AVX2 SIMD SpMV, fused residual kernels, bounds-check elimination, arena allocator
+
+**Supporting crates**:
+- [`ruvector-attn-mincut`](./crates/ruvector-attn-mincut/README.md) — Min-cut gating as alternative to softmax attention
+- [`ruvector-coherence`](./crates/ruvector-coherence/README.md) — Coherence measurement for attention comparison
+- [`ruvector-profiler`](./crates/ruvector-profiler/README.md) — Memory, power, and latency benchmarking
+
+- **177 tests** | 5 Criterion benchmarks | WASM + NAPI bindings
+- **ADR documentation**: [docs/research/sublinear-time-solver/](./docs/research/sublinear-time-solver/)
+
+</details>
+
 ---
 
-## How the GNN Works
+## How RuVector Compares
 
-Traditional vector search:
-```
-Query → HNSW Index → Top K Results
-```
-
-RuVector with GNN:
-```
-Query → HNSW Index → GNN Layer → Enhanced Results
-                ↑                      │
-                └──── learns from ─────┘
-```
-
-The GNN layer:
-1. Takes your query and its nearest neighbors
-2. Applies multi-head attention to weigh which neighbors matter
-3. Updates representations based on graph structure
-4. Returns better-ranked results
-
-Over time, frequently-accessed paths get reinforced, making common queries faster and more accurate.
-
-
-## Quick Start
-
-### One-Line Install
-
-```bash
-# Interactive installer - lists all packages
-npx ruvector install
-
-# Or install directly
-npm install ruvector
-npx ruvector
-
-# Self-learning hooks for Claude Code
-npx @ruvector/cli hooks init
-npx @ruvector/cli hooks install
-
-# LLM runtime (SONA learning, HNSW memory)
-npm install @ruvector/ruvllm
-```
-
-### Node.js / Browser
-
-```bash
-# Install
-npm install ruvector
-
-# Or try instantly
-npx ruvector
-```
-
+See how RuVector stacks up against popular vector databases across 40+ features — from latency and graph queries to self-learning, cognitive containers, and PostgreSQL integration.
 
 <details>
 <summary>📊 Comparison with Other Vector Databases</summary>
 
-| Feature | RuVector | Pinecone | Qdrant | Milvus | ChromaDB |
-|---------|----------|----------|--------|--------|----------|
-| **Latency (p50)** | **61µs** | ~2ms | ~1ms | ~5ms | ~50ms |
-| **Memory (1M vec)** | 200MB* | 2GB | 1.5GB | 1GB | 3GB |
-| **Graph Queries** | ✅ Cypher | ❌ | ❌ | ❌ | ❌ |
-| **SPARQL/RDF** | ✅ W3C 1.1 | ❌ | ❌ | ❌ | ❌ |
-| **Hyperedges** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Dynamic Min-Cut** | ✅ n^0.12 | ❌ | ❌ | ❌ | ❌ |
-| **Self-Learning (GNN)** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Runtime Adaptation (SONA)** | ✅ LoRA+EWC++ | ❌ | ❌ | ❌ | ❌ |
-| **AI Agent Routing** | ✅ Tiny Dancer | ❌ | ❌ | ❌ | ❌ |
-| **Attention Mechanisms** | ✅ 40 types | ❌ | ❌ | ❌ | ❌ |
-| **Coherence Gate** | ✅ Prime-Radiant | ❌ | ❌ | ❌ | ❌ |
-| **Hyperbolic Embeddings** | ✅ Poincaré+Lorentz | ❌ | ❌ | ❌ | ❌ |
-| **Local Embeddings** | ✅ 8+ models | ❌ | ❌ | ❌ | ❌ |
-| **PostgreSQL Extension** | ✅ 77+ functions | ❌ | ❌ | ❌ | ❌ |
-| **SIMD Optimization** | ✅ AVX-512/NEON | Partial | ✅ | ✅ | ❌ |
-| **Metadata Filtering** | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Sparse Vectors** | ✅ BM25/TF-IDF | ✅ | ✅ | ✅ | ❌ |
-| **Raft Consensus** | ✅ | ❌ | ✅ | ❌ | ❌ |
-| **Multi-Master Replication** | ✅ | ❌ | ❌ | ✅ | ❌ |
-| **Auto-Sharding** | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Auto-Compression** | ✅ 2-32x | ❌ | ❌ | ✅ | ❌ |
-| **Snapshots/Backups** | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Browser/WASM** | ✅ WebGPU | ❌ | ❌ | ❌ | ❌ |
-| **Standalone Edge DB** | ✅ rvLite | ❌ | ❌ | ❌ | ❌ |
-| **LLM Runtime** | ✅ ruvllm | ❌ | ❌ | ❌ | ❌ |
-| **Pre-trained Models** | ✅ RuvLTRA (HF) | ❌ | ❌ | ❌ | ❌ |
-| **MCP Server** | ✅ mcp-gate | ❌ | ❌ | ❌ | ❌ |
-| **Self-Learning Hooks** | ✅ Q-learning+Neural+HNSW | ❌ | ❌ | ❌ | ❌ |
-| **Quantum Coherence** | ✅ ruQu | ❌ | ❌ | ❌ | ❌ |
-| **MinCut-Gated Attention** | ✅ 50% compute | ❌ | ❌ | ❌ | ❌ |
-| **FPGA Acceleration** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Local ONNX Embeddings** | ✅ 8+ models | ❌ | ❌ | ❌ | ❌ |
-| **Differentiable** | ✅ | ❌ | ❌ | ❌ | ❌ |
-| **Multi-Tenancy** | ✅ Collections | ✅ | ✅ | ✅ | ✅ |
-| **DAG Workflows** | ✅ Self-learning | ❌ | ❌ | ❌ | ❌ |
-| **ReasoningBank** | ✅ Trajectory learning | ❌ | ❌ | ❌ | ❌ |
-| **Economy System** | ✅ CRDT tokenomics | ❌ | ❌ | ❌ | ❌ |
-| **Nervous System** | ✅ Event-driven | ❌ | ❌ | ❌ | ❌ |
-| **Cognitum Gate** | ✅ TileZero | ❌ | ❌ | ❌ | ❌ |
-| **SciPix OCR** | ✅ LaTeX/MathML | ❌ | ❌ | ❌ | ❌ |
-| **Spiking Neural Nets** | ✅ Neuromorphic | ❌ | ❌ | ❌ | ❌ |
-| **Node.js Native** | ✅ napi-rs | ❌ | ❌ | ❌ | ✅ |
-| **Burst Scaling** | ✅ 10-50x | ✅ | ❌ | ✅ | ❌ |
-| **Streaming API** | ✅ | ✅ | ✅ | ✅ | ❌ |
-| **Open Source** | ✅ MIT | ❌ | ✅ | ✅ | ✅ |
+Grouped comparison across 10 categories. RuVector is the only vector database that learns from usage, runs AI locally, and ships as a single self-booting file.
 
-*With PQ8 compression. Benchmarks on Apple M2 / Intel i7.
+**Performance & Storage**
+| Feature | RuVector | Pinecone | Qdrant | Milvus | ChromaDB | Weaviate |
+|---------|----------|----------|--------|--------|----------|----------|
+| Latency (p50) | **61 us** | ~2 ms | ~1 ms | ~5 ms | ~50 ms | ~5 ms |
+| Memory (1M vectors) | **200 MB*** | 2 GB | 1.5 GB | 1 GB | 3 GB | 1.5 GB |
+| SIMD acceleration | AVX-512, NEON | Partial | ✅ | ✅ | ❌ | Partial |
+| Auto-compression | 2-32x adaptive | ❌ | ❌ | ✅ | ❌ | PQ only |
+| Temporal tensor compression | 4-10x reuse | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Sparse vectors (BM25/TF-IDF) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+
+**Search & Query**
+| Feature | RuVector | Pinecone | Qdrant | Milvus | ChromaDB | Weaviate |
+|---------|----------|----------|--------|--------|----------|----------|
+| Vector similarity search | ✅ HNSW | ✅ | ✅ HNSW | ✅ HNSW | ✅ | ✅ HNSW |
+| Metadata filtering | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Graph queries (Cypher) | ✅ full engine | ❌ | ❌ | ❌ | ❌ | ❌ |
+| SPARQL/RDF (W3C 1.1) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Hyperedges (3+ node) | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Hyperbolic embeddings | Poincare + Lorentz | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Multi-tenancy | ✅ collections | ✅ namespaces | ✅ | ✅ | ✅ | ✅ |
+
+**Self-Learning & AI** — features unique to RuVector
+| Feature | RuVector | All Others |
+|---------|----------|------------|
+| GNN on HNSW — search improves from usage | ✅ every query teaches the index | ❌ static index |
+| SONA runtime adaptation | ✅ LoRA + EWC++ auto-tuning | ❌ manual tuning |
+| 46 attention mechanisms | Flash, linear, graph, hyperbolic, mincut-gated | ❌ |
+| Semantic routing (Tiny Dancer) | FastGRNN neural agent routing | ❌ |
+| Sparse inference (PowerInfer-style) | 2-10x faster on edge devices | ❌ |
+| Domain expansion | Cross-domain transfer learning with bandits | ❌ |
+| Self-learning hooks | Q-learning, neural patterns, HNSW memory | ❌ |
+| ReasoningBank | Trajectory learning with verdict judgment | ❌ |
+
+**Local AI — no cloud APIs needed**
+| Feature | RuVector | Pinecone | Qdrant | Milvus | ChromaDB | Weaviate |
+|---------|----------|----------|--------|--------|----------|----------|
+| Built-in LLM runtime | ✅ ruvllm (GGUF) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Hardware acceleration | Metal, CUDA, ANE, WebGPU | N/A | N/A | GPU indexing | N/A | N/A |
+| Pre-trained models | [RuvLTRA](https://huggingface.co/ruv/ruvltra) (<10 ms) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Local ONNX embeddings | 8+ models, no API calls | ❌ | ❌ | ❌ | ❌ | text2vec modules |
+| MCP server for AI agents | ✅ mcp-gate | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+**Graph Transformers** — verified graph neural network modules
+| Feature | RuVector | All Others |
+|---------|----------|------------|
+| Proof-gated mutation | Every write requires a formal proof — bugs cannot corrupt | ❌ |
+| Sublinear attention | O(n log n) via LSH, PPR, spectral sparsification | ❌ |
+| Physics-informed layers | Hamiltonian dynamics, energy conserved by construction | ❌ |
+| Biological layers | Spiking, Hebbian/STDP, dendritic branching | ❌ |
+| Manifold geometry | Product manifolds S^n x H^m x R^k | ❌ |
+| Temporal-causal layers | Granger causality, continuous-time ODE | ❌ |
+| Economic layers | Nash equilibrium, Shapley attribution | ❌ |
+| Verified training | Certificates, delta-apply rollback, fail-closed | ❌ |
+
+**Math & Solvers**
+| Feature | RuVector | Pinecone | Qdrant | Milvus | ChromaDB | Weaviate |
+|---------|----------|----------|--------|--------|----------|----------|
+| Sublinear solvers (8 algorithms) | O(log n) to O(sqrt(n)) | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Dynamic min-cut | n^0.12 complexity | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Optimal transport distances | Wasserstein, Sinkhorn, KL | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Topological data analysis | Persistent homology, Betti numbers | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Coherence measurement | Prime Radiant sheaf Laplacian | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Quantum error correction | ruQu dynamic min-cut | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+**Distributed Systems**
+| Feature | RuVector | Pinecone | Qdrant | Milvus | ChromaDB | Weaviate |
+|---------|----------|----------|--------|--------|----------|----------|
+| Raft consensus | ✅ | ❌ managed | ✅ | ❌ | ❌ | ✅ |
+| Multi-master replication | ✅ vector clocks | ❌ | ❌ | ✅ | ❌ | ✅ |
+| Auto-sharding | ✅ consistent hashing | ✅ managed | ✅ | ✅ | ❌ | ✅ |
+| Delta consensus (CRDT) | ✅ causal ordering | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Burst scaling (10-50x) | ✅ | ✅ managed | ❌ | ✅ | ❌ | ❌ |
+| Snapshots / backups | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Streaming API | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+
+**Cognitive Containers (RVF)** — single-file deployment unique to RuVector
+| Feature | RuVector | All Others |
+|---------|----------|------------|
+| Self-booting microservice | `.rvf` file boots in 125 ms with Linux kernel | ❌ requires server setup |
+| eBPF acceleration | XDP, socket filter, TC kernel data path | ❌ |
+| COW branching | Git-like — 1M vectors, 100 edits = ~2.5 MB branch | ❌ copy everything |
+| Witness chains | Tamper-evident hash-linked audit trail | ❌ manual logging |
+| Post-quantum signatures | ML-DSA-65, SLH-DSA-128s, Ed25519 | ❌ |
+| 25 segment types | VEC, INDEX, KERNEL, EBPF, WASM, COW_MAP, and 19 more | ❌ |
+
+**Platform & Deployment**
+| Feature | RuVector | Pinecone | Qdrant | Milvus | ChromaDB | Weaviate |
+|---------|----------|----------|--------|--------|----------|----------|
+| Browser / WASM | ✅ WebGPU, 58 KB | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Edge standalone | ✅ rvLite | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Node.js native | ✅ NAPI-RS | ❌ | Client only | Client only | ✅ | Client only |
+| PostgreSQL extension | ✅ 230+ SQL functions | ❌ | ❌ | ❌ | ❌ | ❌ |
+| iOS App Clip | ✅ QR → RVF in <15 MB | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Cloud deployment | Cloud Run, Kubernetes | Managed only | Docker, K8s | Docker, K8s | Docker | Docker, K8s |
+| FPGA acceleration | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Prometheus metrics | ✅ built-in | Dashboard | ✅ | ✅ | ❌ | ✅ |
+
+**Specialized Applications**
+| Feature | RuVector | All Others |
+|---------|----------|------------|
+| Genomics (rvDNA) | Variant calling, k-mer search in 12 ms, browser WASM | ❌ |
+| Neural trading | Kelly Criterion + LSTM-Transformer prediction | ❌ |
+| Scientific OCR (SciPix) | LaTeX/MathML extraction from papers | ❌ |
+| Spiking neural networks | Neuromorphic computing, BTSP learning | ❌ |
+| Bio-inspired nervous system | 5-layer adaptive system with EWC plasticity | ❌ |
+| DAG workflows | Self-learning directed graph execution | ❌ |
+| Cognitum Gate | Cognitive AI gateway with TileZero acceleration | ❌ |
+
+**Licensing & Cost**
+| | RuVector | Pinecone | Qdrant | Milvus | ChromaDB | Weaviate |
+|---|----------|----------|--------|--------|----------|----------|
+| License | MIT (free forever) | Proprietary | Apache 2.0 | Apache 2.0 | Apache 2.0 | BSD-3 |
+| Self-hosted | ✅ | ❌ managed only | ✅ | ✅ | ✅ | ✅ |
+| Pricing model | Free | Per-vector/query | Free + Cloud | Free + managed | Free + Cloud | Free + Cloud |
+
+\* Memory with PQ8 compression. Benchmarks on Apple M2 / Intel i7.
 
 </details>
+
+## Features
+
+Everything RuVector can do — organized by category. Vector search, graph queries, LLM inference, distributed systems, deployment targets, and the self-learning stack that ties it all together.
 
 <details>
 <summary>⚡ Core Features & Capabilities</summary>
@@ -293,6 +580,7 @@ cargo add ruvllm                    # Rust
 
 | Feature | What It Does | Why It Matters |
 |---------|--------------|----------------|
+| **[RVF Cognitive Container](./crates/rvf/README.md)** | Single `.rvf` file: store, boot, branch, prove | Replaces Docker + DB + audit system |
 | **rvLite** | Standalone 2MB edge database | IoT, mobile, embedded |
 | **PostgreSQL Extension** | 77+ SQL functions, pgvector replacement | Drop-in upgrade for existing DBs |
 | **MCP Server** | Model Context Protocol integration | AI assistant tool calling |
@@ -301,7 +589,10 @@ cargo add ruvllm                    # Rust
 | **HTTP/gRPC Server** | REST API with streaming | Easy microservice integration |
 
 ```bash
-docker pull ruvnet/ruvector-postgres    # PostgreSQL
+cargo install rvf-cli                    # RVF CLI (17 commands)
+cargo add rvf-runtime                    # RVF Rust library
+npm install @ruvector/rvf                # RVF TypeScript SDK
+docker pull ruvnet/ruvector-postgres     # PostgreSQL
 npm install rvlite                       # Edge DB
 npx ruvector mcp start                   # MCP Server
 ```
@@ -333,6 +624,8 @@ cargo add ruvector-raft ruvector-cluster ruvector-replication
 | **Adaptive Routing** | Learn optimal routing strategies | Minimize latency, maximize accuracy |
 | **SONA** | Two-tier LoRA + EWC++ + ReasoningBank | Runtime learning without retraining |
 | **Local Embeddings** | 8+ ONNX models built-in | No external API needed |
+| **[Verified Proofs](./crates/ruvector-verified)** | 82-byte proof attestations per vector op | Structural trust, not just assertions |
+| **[Graph Transformers](./crates/ruvector-graph-transformer)** | 8 proof-gated modules: physics, bio, manifold, temporal, economic | Every graph mutation is mathematically verified |
 
 ### Specialized Processing
 
@@ -345,6 +638,7 @@ cargo add ruvector-raft ruvector-cluster ruvector-replication
 | **ruQu Quantum** | Quantum error correction via min-cut | Future-proof algorithms |
 | **Mincut-Gated Transformer** | Dynamic attention via graph optimization | **50% compute reduction** |
 | **Sparse Inference** | Efficient sparse matrix operations | 10x faster for sparse data |
+| **Sublinear Solver** | 8 sparse algorithms, O(log n) | Powers coherence, GNN, spectral |
 
 ### Self-Learning & Adaptation
 
@@ -366,7 +660,7 @@ npx @ruvector/cli hooks install   # Configure for Claude Code
 
 | Feature | What It Does | Why It Matters |
 |---------|--------------|----------------|
-| **40 Mechanisms** | Dot-product, multi-head, flash, linear, sparse, cross-attention, CGT sheaf | Cover all transformer and GNN use cases |
+| **46 Mechanisms** | Dot-product, multi-head, flash, linear, sparse, cross-attention, CGT sheaf | Cover all transformer and GNN use cases |
 | **Graph Attention** | RoPE, edge-featured, local-global, neighborhood | Purpose-built for graph neural networks |
 | **Hyperbolic Attention** | Poincaré ball operations, curved-space math | Better embeddings for hierarchical data |
 | **SIMD Optimized** | Native Rust with AVX2/NEON acceleration | 2-10x faster than pure JS |
@@ -483,6 +777,10 @@ cargo add prime-radiant --features gpu,simd
 
 </details>
 
+## Deployment
+
+Run RuVector wherever your application lives — as a server, a PostgreSQL extension, a browser library, an edge database, or a self-booting container.
+
 <details>
 <summary>🚀 Deployment Options</summary>
 
@@ -495,6 +793,10 @@ cargo add prime-radiant --features gpu,simd
 | **CLI Tools** | Benchmarking, testing, management | DevOps-friendly |
 
 </details>
+
+## Performance
+
+Real numbers from real benchmarks. Query throughput, latency percentiles, recall accuracy, and memory usage — measured on commodity hardware.
 
 <details>
 <summary>📈 Performance Benchmarks</summary>
@@ -538,6 +840,10 @@ Production-validated metrics at hyperscale:
 
 </details>
 
+## Compression
+
+RuVector automatically manages memory like a CPU cache — hot data stays at full precision, cold data compresses in the background. No manual tuning required.
+
 <details>
 <summary>🗜️ Adaptive Compression Tiers</summary>
 
@@ -556,6 +862,10 @@ Think of it like your computer's memory hierarchy—frequently accessed data liv
 **No configuration needed.** RuVector tracks access patterns and automatically promotes/demotes vectors between tiers. Your hot data stays fast; your cold data shrinks.
 
 </details>
+
+## Use Cases
+
+From AI-powered search to genomics, from real-time recommendations to knowledge graphs — see what people are building with RuVector.
 
 <details>
 <summary>💡 Use Cases</summary>
@@ -906,14 +1216,22 @@ await dag.execute();
 
 ## Installation
 
+RuVector runs on Node.js, Rust, browsers, PostgreSQL, and Docker. Pick the package that fits your stack.
+
 | Platform | Command |
 |----------|---------|
 | **npm** | `npm install ruvector` |
 | **npm (SONA)** | `npm install @ruvector/sona` |
+| **npm (Genomics)** | `npm install @ruvector/rvdna` |
+| **npm (RVF)** | `npm install @ruvector/rvf` |
 | **Browser/WASM** | `npm install ruvector-wasm` |
 | **Rust** | `cargo add ruvector-core ruvector-graph ruvector-gnn` |
+| **Rust (RVF)** | `cargo add rvf-runtime` |
+| **Rust (Genomics)** | `cargo add rvdna` |
 | **Rust (SONA)** | `cargo add ruvector-sona` |
 | **Rust (LLM)** | `cargo add ruvllm` |
+| **RVF CLI** | `cargo install rvf-cli` |
+| **RVF MCP** | `npx @ruvector/rvf-mcp-server --transport stdio` |
 
 ---
 
@@ -995,12 +1313,15 @@ await dag.execute();
 | [ADR-011](./docs/adr/ADR-011-prefix-caching.md) | **New** | Prefix caching (SOTA) |
 | [ADR-012](./docs/adr/ADR-012-security-remediation.md) | **New** | Security remediation |
 | [ADR-013](./docs/adr/ADR-013-huggingface-publishing.md) | **New** | HuggingFace publishing |
+| [ADR-030](./docs/adr/ADR-030-rvf-cognitive-container.md) | **Accepted** | RVF cognitive container architecture |
+| [ADR-031](./docs/adr/ADR-031-rvcow-branching-and-real-cognitive-containers.md) | **Accepted** | RVCOW branching & real containers |
+| [ADR-045](./docs/adr/ADR-045-lean-agentic-integration.md) | **Accepted** | Lean-agentic formal verification integration |
 
 </details>
 
 
 <details>
-<summary>📦 npm Packages (45+ Packages)</summary>
+<summary>📦 npm Packages (49+ Packages)</summary>
 
 #### Core Packages
 
@@ -1026,7 +1347,7 @@ await dag.execute();
 |---------|-------------|---------|-----------|
 | [@ruvector/tiny-dancer](https://www.npmjs.com/package/@ruvector/tiny-dancer) | FastGRNN neural routing | [![npm](https://img.shields.io/npm/v/@ruvector/tiny-dancer.svg)](https://www.npmjs.com/package/@ruvector/tiny-dancer) | [![downloads](https://img.shields.io/npm/dt/@ruvector/tiny-dancer.svg)](https://www.npmjs.com/package/@ruvector/tiny-dancer) |
 | [@ruvector/router](https://www.npmjs.com/package/@ruvector/router) | Semantic router + HNSW | [![npm](https://img.shields.io/npm/v/@ruvector/router.svg)](https://www.npmjs.com/package/@ruvector/router) | [![downloads](https://img.shields.io/npm/dt/@ruvector/router.svg)](https://www.npmjs.com/package/@ruvector/router) |
-| [@ruvector/attention](https://www.npmjs.com/package/@ruvector/attention) | 39 attention mechanisms | [![npm](https://img.shields.io/npm/v/@ruvector/attention.svg)](https://www.npmjs.com/package/@ruvector/attention) | [![downloads](https://img.shields.io/npm/dt/@ruvector/attention.svg)](https://www.npmjs.com/package/@ruvector/attention) |
+| [@ruvector/attention](https://www.npmjs.com/package/@ruvector/attention) | 46 attention mechanisms | [![npm](https://img.shields.io/npm/v/@ruvector/attention.svg)](https://www.npmjs.com/package/@ruvector/attention) | [![downloads](https://img.shields.io/npm/dt/@ruvector/attention.svg)](https://www.npmjs.com/package/@ruvector/attention) |
 
 #### Learning & Neural
 
@@ -1060,6 +1381,21 @@ await dag.execute();
 | [rvlite](https://www.npmjs.com/package/rvlite) | SQLite-style edge DB | [![npm](https://img.shields.io/npm/v/rvlite.svg)](https://www.npmjs.com/package/rvlite) | [![downloads](https://img.shields.io/npm/dt/rvlite.svg)](https://www.npmjs.com/package/rvlite) |
 | [@ruvector/rudag](https://www.npmjs.com/package/@ruvector/rudag) | Self-learning DAG | [![npm](https://img.shields.io/npm/v/@ruvector/rudag.svg)](https://www.npmjs.com/package/@ruvector/rudag) | [![downloads](https://img.shields.io/npm/dt/@ruvector/rudag.svg)](https://www.npmjs.com/package/@ruvector/rudag) |
 
+#### Genomics & Health
+
+| Package | Description | Version | Downloads |
+|---------|-------------|---------|-----------|
+| [@ruvector/rvdna](https://www.npmjs.com/package/@ruvector/rvdna) | AI-native genomic analysis + .rvdna format | [![npm](https://img.shields.io/npm/v/@ruvector/rvdna.svg)](https://www.npmjs.com/package/@ruvector/rvdna) | [![downloads](https://img.shields.io/npm/dt/@ruvector/rvdna.svg)](https://www.npmjs.com/package/@ruvector/rvdna) |
+
+#### RVF Cognitive Containers
+
+| Package | Description | Version | Downloads |
+|---------|-------------|---------|-----------|
+| [@ruvector/rvf](https://www.npmjs.com/package/@ruvector/rvf) | Unified TypeScript SDK | [![npm](https://img.shields.io/npm/v/@ruvector/rvf.svg)](https://www.npmjs.com/package/@ruvector/rvf) | [![downloads](https://img.shields.io/npm/dt/@ruvector/rvf.svg)](https://www.npmjs.com/package/@ruvector/rvf) |
+| [@ruvector/rvf-node](https://www.npmjs.com/package/@ruvector/rvf-node) | Node.js N-API native bindings | [![npm](https://img.shields.io/npm/v/@ruvector/rvf-node.svg)](https://www.npmjs.com/package/@ruvector/rvf-node) | [![downloads](https://img.shields.io/npm/dt/@ruvector/rvf-node.svg)](https://www.npmjs.com/package/@ruvector/rvf-node) |
+| [@ruvector/rvf-wasm](https://www.npmjs.com/package/@ruvector/rvf-wasm) | WASM browser package | [![npm](https://img.shields.io/npm/v/@ruvector/rvf-wasm.svg)](https://www.npmjs.com/package/@ruvector/rvf-wasm) | [![downloads](https://img.shields.io/npm/dt/@ruvector/rvf-wasm.svg)](https://www.npmjs.com/package/@ruvector/rvf-wasm) |
+| [@ruvector/rvf-mcp-server](https://www.npmjs.com/package/@ruvector/rvf-mcp-server) | MCP server for AI agents | [![npm](https://img.shields.io/npm/v/@ruvector/rvf-mcp-server.svg)](https://www.npmjs.com/package/@ruvector/rvf-mcp-server) | [![downloads](https://img.shields.io/npm/dt/@ruvector/rvf-mcp-server.svg)](https://www.npmjs.com/package/@ruvector/rvf-mcp-server) |
+
 #### Agentic & Synthetic Data
 
 | Package | Description | Version | Downloads |
@@ -1084,7 +1420,7 @@ await dag.execute();
 | [@ruvector/wasm-unified](https://www.npmjs.com/package/@ruvector/wasm-unified) | Unified TypeScript API | [![npm](https://img.shields.io/npm/v/@ruvector/wasm-unified.svg)](https://www.npmjs.com/package/@ruvector/wasm-unified) | [![downloads](https://img.shields.io/npm/dt/@ruvector/wasm-unified.svg)](https://www.npmjs.com/package/@ruvector/wasm-unified) |
 | [@ruvector/gnn-wasm](https://www.npmjs.com/package/@ruvector/gnn-wasm) | GNN WASM bindings | [![npm](https://img.shields.io/npm/v/@ruvector/gnn-wasm.svg)](https://www.npmjs.com/package/@ruvector/gnn-wasm) | [![downloads](https://img.shields.io/npm/dt/@ruvector/gnn-wasm.svg)](https://www.npmjs.com/package/@ruvector/gnn-wasm) |
 | [@ruvector/attention-wasm](https://www.npmjs.com/package/@ruvector/attention-wasm) | Attention WASM bindings | [![npm](https://img.shields.io/npm/v/@ruvector/attention-wasm.svg)](https://www.npmjs.com/package/@ruvector/attention-wasm) | [![downloads](https://img.shields.io/npm/dt/@ruvector/attention-wasm.svg)](https://www.npmjs.com/package/@ruvector/attention-wasm) |
-| [@ruvector/attention-unified-wasm](https://www.npmjs.com/package/@ruvector/attention-unified-wasm) | All 39 attention mechanisms | [![npm](https://img.shields.io/npm/v/@ruvector/attention-unified-wasm.svg)](https://www.npmjs.com/package/@ruvector/attention-unified-wasm) | [![downloads](https://img.shields.io/npm/dt/@ruvector/attention-unified-wasm.svg)](https://www.npmjs.com/package/@ruvector/attention-unified-wasm) |
+| [@ruvector/attention-unified-wasm](https://www.npmjs.com/package/@ruvector/attention-unified-wasm) | All 46 attention mechanisms | [![npm](https://img.shields.io/npm/v/@ruvector/attention-unified-wasm.svg)](https://www.npmjs.com/package/@ruvector/attention-unified-wasm) | [![downloads](https://img.shields.io/npm/dt/@ruvector/attention-unified-wasm.svg)](https://www.npmjs.com/package/@ruvector/attention-unified-wasm) |
 | [@ruvector/tiny-dancer-wasm](https://www.npmjs.com/package/@ruvector/tiny-dancer-wasm) | AI routing WASM | [![npm](https://img.shields.io/npm/v/@ruvector/tiny-dancer-wasm.svg)](https://www.npmjs.com/package/@ruvector/tiny-dancer-wasm) | [![downloads](https://img.shields.io/npm/dt/@ruvector/tiny-dancer-wasm.svg)](https://www.npmjs.com/package/@ruvector/tiny-dancer-wasm) |
 | [@ruvector/router-wasm](https://www.npmjs.com/package/@ruvector/router-wasm) | Semantic router WASM | [![npm](https://img.shields.io/npm/v/@ruvector/router-wasm.svg)](https://www.npmjs.com/package/@ruvector/router-wasm) | [![downloads](https://img.shields.io/npm/dt/@ruvector/router-wasm.svg)](https://www.npmjs.com/package/@ruvector/router-wasm) |
 | [@ruvector/learning-wasm](https://www.npmjs.com/package/@ruvector/learning-wasm) | Learning module WASM | [![npm](https://img.shields.io/npm/v/@ruvector/learning-wasm.svg)](https://www.npmjs.com/package/@ruvector/learning-wasm) | [![downloads](https://img.shields.io/npm/dt/@ruvector/learning-wasm.svg)](https://www.npmjs.com/package/@ruvector/learning-wasm) |
@@ -1096,9 +1432,9 @@ await dag.execute();
 </details>
 
 <details>
-<summary>🦀 Rust Crates (63 Packages)</summary>
+<summary>🦀 Rust Crates (83 Packages)</summary>
 
-All crates are published to [crates.io](https://crates.io) under the `ruvector-*` namespace.
+All crates are published to [crates.io](https://crates.io) under the `ruvector-*` and `rvf-*` namespaces.
 
 ### Core Crates
 
@@ -1129,7 +1465,7 @@ All crates are published to [crates.io](https://crates.io) under the `ruvector-*
 
 | Crate | Description | crates.io |
 |-------|-------------|-----------|
-| [ruvector-attention](./crates/ruvector-attention) | 39 attention mechanisms (Flash, Hyperbolic, MoE, Graph) | [![crates.io](https://img.shields.io/crates/v/ruvector-attention.svg)](https://crates.io/crates/ruvector-attention) |
+| [ruvector-attention](./crates/ruvector-attention) | 46 attention mechanisms (Flash, Hyperbolic, MoE, Graph) | [![crates.io](https://img.shields.io/crates/v/ruvector-attention.svg)](https://crates.io/crates/ruvector-attention) |
 | [ruvector-attention-node](./crates/ruvector-attention-node) | Node.js bindings for attention mechanisms | [![crates.io](https://img.shields.io/crates/v/ruvector-attention-node.svg)](https://crates.io/crates/ruvector-attention-node) |
 | [ruvector-attention-wasm](./crates/ruvector-attention-wasm) | WASM bindings for browser attention | [![crates.io](https://img.shields.io/crates/v/ruvector-attention-wasm.svg)](https://crates.io/crates/ruvector-attention-wasm) |
 | [ruvector-attention-cli](./crates/ruvector-attention-cli) | CLI for attention testing and benchmarking | [![crates.io](https://img.shields.io/crates/v/ruvector-attention-cli.svg)](https://crates.io/crates/ruvector-attention-cli) |
@@ -1284,6 +1620,225 @@ let syndrome = gate.assess_coherence(&quantum_state)?;
 
 **SONA Features:** Two-tier LoRA adaptation, Elastic Weight Consolidation (EWC++), ReasoningBank for trajectory learning, runtime-adaptive learning for LLM routers.
 
+### Genomics & Health (rvDNA)
+
+| Crate | Description | crates.io |
+|-------|-------------|-----------|
+| [rvdna](./examples/dna) | AI-native genomic analysis — variant calling, protein translation, HNSW k-mer search, `.rvdna` format | [![crates.io](https://img.shields.io/crates/v/rvdna.svg)](https://crates.io/crates/rvdna) |
+
+**rvDNA Features:** 12 ms full pipeline on 5 real human genes, Bayesian variant calling (155 ns/SNP), Horvath epigenetic clock, CYP2D6 pharmacogenomics, `.rvdna` binary format with pre-computed AI features, WASM support for browser-based diagnostics. [Full README](./examples/dna/README.md)
+
+### RVF Cognitive Containers
+
+| Crate | Description | crates.io |
+|-------|-------------|-----------|
+| [rvf-types](./crates/rvf/rvf-types) | 20 segment headers, COW/membership/delta types (`no_std`) | [![crates.io](https://img.shields.io/crates/v/rvf-types.svg)](https://crates.io/crates/rvf-types) |
+| [rvf-wire](./crates/rvf/rvf-wire) | Wire format read/write (`no_std`) | [![crates.io](https://img.shields.io/crates/v/rvf-wire.svg)](https://crates.io/crates/rvf-wire) |
+| [rvf-manifest](./crates/rvf/rvf-manifest) | Two-level manifest, FileIdentity, COW pointers | [![crates.io](https://img.shields.io/crates/v/rvf-manifest.svg)](https://crates.io/crates/rvf-manifest) |
+| [rvf-quant](./crates/rvf/rvf-quant) | Scalar, product, binary quantization | [![crates.io](https://img.shields.io/crates/v/rvf-quant.svg)](https://crates.io/crates/rvf-quant) |
+| [rvf-index](./crates/rvf/rvf-index) | HNSW progressive indexing (Layer A/B/C) | [![crates.io](https://img.shields.io/crates/v/rvf-index.svg)](https://crates.io/crates/rvf-index) |
+| [rvf-crypto](./crates/rvf/rvf-crypto) | SHAKE-256, Ed25519, witness chains, attestation | [![crates.io](https://img.shields.io/crates/v/rvf-crypto.svg)](https://crates.io/crates/rvf-crypto) |
+| [rvf-runtime](./crates/rvf/rvf-runtime) | Full store API, COW engine, compaction | [![crates.io](https://img.shields.io/crates/v/rvf-runtime.svg)](https://crates.io/crates/rvf-runtime) |
+| [rvf-kernel](./crates/rvf/rvf-kernel) | Linux kernel builder, initramfs, Docker pipeline | [![crates.io](https://img.shields.io/crates/v/rvf-kernel.svg)](https://crates.io/crates/rvf-kernel) |
+| [rvf-ebpf](./crates/rvf/rvf-ebpf) | Real BPF programs (XDP, socket filter, TC) | [![crates.io](https://img.shields.io/crates/v/rvf-ebpf.svg)](https://crates.io/crates/rvf-ebpf) |
+| [rvf-launch](./crates/rvf/rvf-launch) | QEMU microvm launcher, KVM/TCG | [![crates.io](https://img.shields.io/crates/v/rvf-launch.svg)](https://crates.io/crates/rvf-launch) |
+| [rvf-server](./crates/rvf/rvf-server) | HTTP REST + TCP streaming server | [![crates.io](https://img.shields.io/crates/v/rvf-server.svg)](https://crates.io/crates/rvf-server) |
+| [rvf-import](./crates/rvf/rvf-import) | JSON, CSV, NumPy importers | [![crates.io](https://img.shields.io/crates/v/rvf-import.svg)](https://crates.io/crates/rvf-import) |
+| [rvf-cli](./crates/rvf/rvf-cli) | Unified CLI with 17 subcommands | [![crates.io](https://img.shields.io/crates/v/rvf-cli.svg)](https://crates.io/crates/rvf-cli) |
+
+**RVF Features:** Single-file cognitive containers that boot as Linux microservices, COW branching at cluster granularity, eBPF acceleration, witness chains, post-quantum signatures, 24 segment types. [Full README](./crates/rvf/README.md)
+
+### Formal Verification
+
+| Crate | Description | crates.io |
+|-------|-------------|-----------|
+| [ruvector-verified](./crates/ruvector-verified) | Proof-carrying vector operations with lean-agentic dependent types (~500ns proofs) | [![crates.io](https://img.shields.io/crates/v/ruvector-verified.svg)](https://crates.io/crates/ruvector-verified) |
+| [ruvector-verified-wasm](./crates/ruvector-verified-wasm) | WASM bindings for browser/edge formal verification | [![crates.io](https://img.shields.io/crates/v/ruvector-verified-wasm.svg)](https://crates.io/crates/ruvector-verified-wasm) |
+
+**Verification Features:** 82-byte proof attestations, 3-tier gated proof routing (Reflex <10ns / Standard <1us / Deep <100us), FastTermArena with O(1) dedup, batch dimension verification (~11ns/vector), type-safe pipeline composition. [Full README](./crates/ruvector-verified/README.md)
+
+<details>
+<summary>Formal Verification Details</summary>
+
+**How it works:** Every vector operation produces a machine-checked proof term using lean-agentic dependent types. Proofs are constructed at compile-time semantics but execute at runtime with sub-microsecond overhead, then serialized into 82-byte attestations that can be embedded in RVF witness chains.
+
+| Operation | Latency | Description |
+|-----------|---------|-------------|
+| `ProofEnvironment::new()` | ~470ns | Initialize proof context with type declarations |
+| `prove_dim_eq(a, b)` | ~496ns | Dimension equality proof with FxHash caching |
+| `verify_batch_dimensions()` | ~11ns/vec | Batch verification for N vectors |
+| `compose_chain()` | ~1.2us | Type-safe pipeline composition |
+| `create_attestation()` | ~180ns | 82-byte formal proof witness |
+| `FastTermArena::intern()` | ~1.6ns hit | O(1) dedup with 4-wide linear probe |
+| `gated::route_proof()` | <10ns | 3-tier routing: Reflex / Standard / Deep |
+
+**10 Exotic Application Domains** ([examples/verified-applications](./examples/verified-applications)):
+
+1. **Autonomous Weapons Filter** — certified targeting pipeline blocks tampered sensors
+2. **Medical Diagnostics** — proof-carrying ECG analysis with patient-keyed attestations
+3. **Financial Order Routing** — verified trade execution with proof-hash audit trail
+4. **Multi-Agent Contracts** — dimension + metric + depth contracts enforced by proof
+5. **Distributed Sensor Swarm** — coherence verification across heterogeneous nodes
+6. **Quantization Proof** — certify quantization error within formal tolerance bounds
+7. **Verifiable Synthetic Memory** — AGI memory with per-embedding proof attestations
+8. **Cryptographic Vector Signatures** — model-keyed signatures with contract matching
+9. **Simulation Integrity** — proof receipt per step for reproducible physics
+10. **Legal Forensics** — court-admissible replay bundles with structural invariants
+
+```rust
+use ruvector_verified::{ProofEnvironment, vector_types, proof_store};
+
+let mut env = ProofEnvironment::new();
+let proof = vector_types::prove_dim_eq(&mut env, 384, 384).unwrap();
+let att = proof_store::create_attestation(&env, proof);
+assert_eq!(att.to_bytes().len(), 82); // 82-byte formal witness
+```
+
+</details>
+
+**Self-booting example** — the `claude_code_appliance` builds a complete AI dev environment as one file:
+
+```bash
+cd examples/rvf && cargo run --example claude_code_appliance
+```
+
+Final file: **5.1 MB single `.rvf`** — boots Linux, serves queries, runs Claude Code. One file. Boots on QEMU/Firecracker. Runs SSH. Serves vectors. Installs Claude Code. Proves every step with a cryptographic witness chain.
+
+### Graph Transformer
+
+[![Crates.io](https://img.shields.io/crates/v/ruvector-graph-transformer.svg)](https://crates.io/crates/ruvector-graph-transformer)
+
+| Crate | Description | Registry |
+|-------|-------------|----------|
+| [ruvector-graph-transformer](./crates/ruvector-graph-transformer) | Unified graph transformer with proof-gated mutation substrate (8 modules, 186 tests) | [![crates.io](https://img.shields.io/crates/v/ruvector-graph-transformer.svg)](https://crates.io/crates/ruvector-graph-transformer) |
+| [ruvector-graph-transformer-wasm](./crates/ruvector-graph-transformer-wasm) | WASM bindings for browser-side graph transformers | [![crates.io](https://img.shields.io/crates/v/ruvector-graph-transformer-wasm.svg)](https://crates.io/crates/ruvector-graph-transformer-wasm) |
+| [ruvector-graph-transformer-node](./crates/ruvector-graph-transformer-node) | Node.js NAPI-RS bindings (22+ methods, 20 tests) | [![npm](https://img.shields.io/npm/v/@ruvector/graph-transformer.svg)](https://www.npmjs.com/package/@ruvector/graph-transformer) |
+
+**What it does:** Every time you modify a graph — adding a node, changing an edge weight, updating a vector — the graph transformer requires a formal proof that the operation is valid *before* it executes. Think of it like a type system for graph mutations: you can't accidentally corrupt your data because the system mathematically verifies every change.
+
+On top of that proof layer, 8 specialized modules handle different aspects of graph intelligence:
+
+| Module | What It Does (Plain English) | Feature Flag |
+|--------|------------------------------|--------------|
+| **Proof-Gated Mutation** | Locks graph data behind mathematical proofs — no proof, no access | always on |
+| **Sublinear Attention** | Finds the most important nodes without checking every single one — scales to millions | `sublinear` |
+| **Physics-Informed** | Applies physics equations (conservation of energy, symmetry) to message passing | `physics` |
+| **Biological** | Models neurons that only fire when excited enough — naturally sparse, energy-efficient | `biological` |
+| **Self-Organizing** | Graphs that grow and reorganize themselves like biological development | `self-organizing` |
+| **Verified Training** | Training with a receipt — if a gradient step would break an invariant, it's automatically rolled back | `verified-training` |
+| **Manifold** | Operates in curved spaces (like the surface of a sphere) instead of just flat Euclidean space | `manifold` |
+| **Temporal-Causal** | Enforces that information flows forward in time — no peeking at the future | `temporal` |
+| **Economic** | Uses game theory to allocate attention fairly — Nash equilibrium for node importance | `economic` |
+
+```bash
+# Rust
+cargo add ruvector-graph-transformer --features full
+
+# Node.js
+npm install @ruvector/graph-transformer
+```
+
+```rust
+use ruvector_graph_transformer::sublinear_attention::SublinearGraphAttention;
+use ruvector_graph_transformer::config::SublinearConfig;
+
+let attn = SublinearGraphAttention::new(128, SublinearConfig::default());
+let outputs = attn.lsh_attention(&features).unwrap(); // O(n log n)
+```
+
+```javascript
+const { GraphTransformer } = require('@ruvector/graph-transformer');
+const gt = new GraphTransformer();
+
+// Every operation produces a proof receipt
+const proof = gt.proveDimension(128, 128);
+const attestation = gt.createAttestation(proof.proof_id); // 82 bytes
+```
+
+<details>
+<summary>Graph Transformer Architecture Details</summary>
+
+**Proof-gated mutation** means `state_n -> proof(invariant) -> mutation -> state_n+1`. The `ProofGate<T>` type wraps any value so you literally cannot access the inner data without first producing a valid proof. This is enforced at the type level in Rust and at runtime in WASM/Node.js.
+
+**Sublinear attention** uses three strategies: (1) locality-sensitive hashing groups similar nodes into buckets, (2) personalized PageRank samples the most relevant neighbors via random walks, (3) spectral sparsification prunes edges that don't contribute to graph connectivity. All three reduce O(n^2) full attention to O(n log n).
+
+**Verified training** uses a delta-apply architecture: gradients go to a scratch buffer first, invariants are checked against the proposed weights (loss stability, weight norms, Lipschitz bounds, energy gates), and only if all checks pass are the weights committed. If any check fails and `fail_closed = true`, the step is rejected and the old weights are preserved. Every successful step produces a `TrainingCertificate` with BLAKE3 hashes of weights, config, and dataset manifest.
+
+**10 ADRs** document every design decision: [ADR-046](./docs/adr/ADR-046-graph-transformer-architecture.md) through [ADR-055](./docs/adr/ADR-055-manifold-graph-layers.md).
+
+</details>
+
+### Personal AI Memory (OSpipe)
+
+[![npm](https://img.shields.io/npm/v/@ruvector/ospipe.svg)](https://www.npmjs.com/package/@ruvector/ospipe)
+[![npm](https://img.shields.io/npm/v/@ruvector/ospipe-wasm.svg)](https://www.npmjs.com/package/@ruvector/ospipe-wasm)
+
+| Package | Description | Registry |
+|---------|-------------|----------|
+| [ospipe](./examples/OSpipe) | RuVector-enhanced personal AI memory for Screenpipe | [![crates.io](https://img.shields.io/crates/v/ospipe.svg)](https://crates.io/crates/ospipe) |
+| [@ruvector/ospipe](https://www.npmjs.com/package/@ruvector/ospipe) | TypeScript SDK with retry, timeout, and AbortSignal | [![npm](https://img.shields.io/npm/v/@ruvector/ospipe.svg)](https://www.npmjs.com/package/@ruvector/ospipe) |
+| [@ruvector/ospipe-wasm](https://www.npmjs.com/package/@ruvector/ospipe-wasm) | WASM bindings for browser deployment (145 KB) | [![npm](https://img.shields.io/npm/v/@ruvector/ospipe-wasm.svg)](https://www.npmjs.com/package/@ruvector/ospipe-wasm) |
+
+```bash
+npm install @ruvector/ospipe         # TypeScript SDK
+npm install @ruvector/ospipe-wasm    # Browser WASM
+cargo add ospipe                     # Rust crate
+```
+
+**Replaces Screenpipe's SQLite/FTS5 backend with semantic vector search.** Ask your computer what you saw, heard, and did -- with semantic understanding.
+
+<details>
+<summary>OSpipe Features & Capabilities</summary>
+
+| Feature | Description |
+|---------|-------------|
+| **HNSW Vector Search** | 61us p50 query latency via `ruvector-core` |
+| **Knowledge Graph** | Entity extraction (persons, URLs, emails, mentions) via `ruvector-graph` |
+| **Attention Reranking** | Content prioritization via `ruvector-attention` |
+| **Quantum Diversity** | MMR + quantum-inspired result selection via `ruqu-algorithms` |
+| **GNN Learning** | Search quality improves over time via `ruvector-gnn` |
+| **PII Safety Gate** | Auto-redacts credit cards, SSNs, emails before storage |
+| **Frame Deduplication** | Cosine similarity sliding window eliminates near-duplicates |
+| **Query Router** | Auto-routes to Semantic, Keyword, Graph, Temporal, or Hybrid backend |
+| **4-Tier Quantization** | f32 -> int8 -> product -> binary (97% memory savings over time) |
+| **REST API** | Axum server with `/v2/search`, `/v2/route`, `/v2/stats`, `/v2/health` |
+| **WASM Support** | Runs in browser (145 KB), bundles from 11.8 KB (micro) to 350 KB (full) |
+| **Cross-Platform** | Native: Linux, macOS, Windows; WASM: any browser |
+
+**Comparison: Screenpipe vs OSpipe**
+
+| | Screenpipe (FTS5) | OSpipe (RuVector) |
+|---|---|---|
+| Search | Keyword (FTS5) | Semantic + Keyword + Graph + Temporal |
+| Latency | ~1ms (FTS5) | 61us (HNSW p50) |
+| Relations | None | Knowledge Graph (Cypher) |
+| PII | Basic | Credit card, SSN, email redaction |
+| Dedup | None | Cosine similarity sliding window |
+| Browser | None | WASM (11.8 KB - 350 KB) |
+| Quantization | None | 4-tier age-based (f32 -> binary) |
+
+**Integrates 10 RuVector crates:** ruvector-core, ruvector-filter, ruvector-cluster, ruvector-delta-core, ruvector-router-core, cognitum-gate-kernel, ruvector-graph, ruvector-attention, ruvector-gnn, ruqu-algorithms.
+
+</details>
+
+```rust
+use ospipe::config::OsPipeConfig;
+use ospipe::pipeline::ingestion::IngestionPipeline;
+use ospipe::capture::CapturedFrame;
+
+let config = OsPipeConfig::default();
+let mut pipeline = IngestionPipeline::new(config)?;
+
+// Ingest a screen capture
+let frame = CapturedFrame::new_screen("Firefox", "Meeting Notes", "auth discussion: JWT with refresh tokens", 0);
+pipeline.ingest(frame)?;
+
+// Semantic search
+let results = pipeline.search("what was the authentication discussion?", 5)?;
+```
+
+See [OSpipe README](./examples/OSpipe/README.md) for full documentation, TypeScript/WASM quickstart, and configuration reference.
+
 ### Standalone Edge Database (rvLite)
 
 | Crate | Description | crates.io |
@@ -1356,6 +1911,24 @@ See [ruvector-dag README](./crates/ruvector-dag/README.md) for full documentatio
 **Performance Targets:** >100K writes/sec, <1ms p99 read latency, 4-32x compression ([ADR-023](./docs/adr/temporal-tensor-store/ADR-023-benchmarking-acceptance-criteria.md))
 
 See [Domain-Driven Design](./docs/architecture/temporal-tensor-store-ddd.md) for architecture details.
+
+### Delta Behavior (Behavioral Change Tracking)
+
+| Crate | Description | crates.io |
+|-------|-------------|-----------|
+| [ruvector-delta-core](./crates/ruvector-delta-core) | Core delta types and traits for behavioral vector change tracking | [![crates.io](https://img.shields.io/crates/v/ruvector-delta-core.svg)](https://crates.io/crates/ruvector-delta-core) |
+| [ruvector-delta-graph](./crates/ruvector-delta-graph) | Delta operations for graph structures — edge and node changes | [![crates.io](https://img.shields.io/crates/v/ruvector-delta-graph.svg)](https://crates.io/crates/ruvector-delta-graph) |
+| [ruvector-delta-index](./crates/ruvector-delta-index) | Delta-aware HNSW index with incremental updates and repair | [![crates.io](https://img.shields.io/crates/v/ruvector-delta-index.svg)](https://crates.io/crates/ruvector-delta-index) |
+| [ruvector-delta-consensus](./crates/ruvector-delta-consensus) | Distributed delta consensus using CRDTs and causal ordering | [![crates.io](https://img.shields.io/crates/v/ruvector-delta-consensus.svg)](https://crates.io/crates/ruvector-delta-consensus) |
+| [ruvector-delta-wasm](./crates/ruvector-delta-wasm) | WASM bindings for delta operations on vectors | [![crates.io](https://img.shields.io/crates/v/ruvector-delta-wasm.svg)](https://crates.io/crates/ruvector-delta-wasm) |
+
+**Delta Behavior** tracks how vectors change over time — the mathematics of systems that refuse to collapse. Incremental HNSW updates without full rebuilds, CRDT-based distributed consensus, and causal ordering for conflict-free replication.
+
+### Profiling & Diagnostics
+
+| Crate | Description | crates.io |
+|-------|-------------|-----------|
+| [profiling](./crates/profiling) | Real-time coherence assessment via dynamic min-cut | [![crates.io](https://img.shields.io/crates/v/profiling.svg)](https://crates.io/crates/profiling) |
 
 ### CRV Signal Line Protocol
 
@@ -2932,7 +3505,7 @@ let distances = batch_distances(&query, &database);  // 8-54x speedup
 [![Docker Hub](https://img.shields.io/docker/pulls/ruvnet/ruvector-postgres?label=docker%20pulls)](https://hub.docker.com/r/ruvnet/ruvector-postgres)
 [![Docker](https://img.shields.io/docker/v/ruvnet/ruvector-postgres?label=docker)](https://hub.docker.com/r/ruvnet/ruvector-postgres)
 
-**The most advanced PostgreSQL vector extension** — a drop-in pgvector replacement with 230+ SQL functions, hardware-accelerated SIMD operations, and built-in AI capabilities. Transform your existing PostgreSQL database into a full-featured vector search engine with GNN layers, attention mechanisms, and self-learning capabilities.
+**The most advanced PostgreSQL vector extension** — a drop-in pgvector replacement with 143 SQL functions, hardware-accelerated SIMD operations, and built-in AI capabilities. Transform your existing PostgreSQL database into a full-featured vector search engine with GNN layers, attention mechanisms, and self-learning capabilities.
 
 ```bash
 # Quick Install from Docker Hub
@@ -2950,17 +3523,17 @@ CREATE EXTENSION ruvector;
 
 **Why RuVector Postgres?**
 - **Zero Migration** — Works with existing pgvector code, just swap the extension
-- **10x More Functions** — 230+ SQL functions vs pgvector's ~20
+- **10x More Functions** — 143 SQL functions vs pgvector's ~20
 - **2x Faster** — AVX-512/AVX2/NEON SIMD acceleration
-- **AI-Native** — GNN layers, 39 attention mechanisms, local embeddings
+- **AI-Native** — GNN layers, 46 attention mechanisms, local embeddings
 - **Self-Learning** — Improves search quality over time with ReasoningBank
 
 | Feature | pgvector | RuVector Postgres |
 |---------|----------|-------------------|
-| SQL Functions | ~20 | **230+** |
+| SQL Functions | ~20 | **143** |
 | SIMD Acceleration | Basic | AVX-512/AVX2/NEON (~2x faster) |
 | Index Types | HNSW, IVFFlat | HNSW, IVFFlat + Hyperbolic |
-| Attention Mechanisms | ❌ | 39 types (Flash, Linear, Graph) |
+| Attention Mechanisms | ❌ | 46 types (Flash, Linear, Graph) |
 | GNN Layers | ❌ | GCN, GraphSAGE, GAT, GIN |
 | Sparse Vectors | ❌ | BM25, TF-IDF, SPLADE |
 | Self-Learning | ❌ | ReasoningBank, trajectory learning |
@@ -3013,8 +3586,9 @@ volumes:
 ```
 
 **Available Tags:**
-- `ruvnet/ruvector-postgres:latest` - PostgreSQL + RuVector 2.0
-- `ruvnet/ruvector-postgres:2.0.0` - Specific version
+- `ruvnet/ruvector-postgres:latest` - PostgreSQL + RuVector 0.3.0
+- `ruvnet/ruvector-postgres:0.3.0` - Current release (143 SQL functions)
+- `ruvnet/ruvector-postgres:2.0.0` - Previous release
 
 </details>
 
@@ -3116,15 +3690,21 @@ pg15 = ["ruvector-postgres/pg15"]
 # AI features (opt-in)
 ai-complete = ["ruvector-postgres/ai-complete"]  # All AI features
 learning = ["ruvector-postgres/learning"]         # Self-learning
-attention = ["ruvector-postgres/attention"]       # 39 attention mechanisms
+attention = ["ruvector-postgres/attention"]       # 46 attention mechanisms
 gnn = ["ruvector-postgres/gnn"]                   # Graph neural networks
 hyperbolic = ["ruvector-postgres/hyperbolic"]     # Hyperbolic embeddings
 embeddings = ["ruvector-postgres/embeddings"]     # Local embedding generation
+solver = ["ruvector-postgres/solver"]                   # Sublinear solvers
+math-distances = ["ruvector-postgres/math-distances"]   # Math distances & spectral
+tda = ["ruvector-postgres/tda"]                         # Topological data analysis
+sona-learning = ["ruvector-postgres/sona-learning"]     # Sona learning
+domain-expansion = ["ruvector-postgres/domain-expansion"] # Domain expansion
+analytics-complete = ["solver", "math-distances", "tda"] # All analytics
 ```
 
 **Build with all features:**
 ```bash
-cargo pgrx install --release --features "ai-complete,embeddings"
+cargo pgrx install --release --features "ai-complete,embeddings,analytics-complete,attention-extended,sona-learning,domain-expansion"
 ```
 
 </details>
@@ -3181,7 +3761,7 @@ SELECT ruvector_flash_attention(query, key, value);
 
 </details>
 
-See [ruvector-postgres README](./crates/ruvector-postgres/README.md) for full SQL API reference (230+ functions).
+See [ruvector-postgres README](./crates/ruvector-postgres/README.md) for full SQL API reference (143 functions).
 
 </details>
 
@@ -3672,6 +4252,7 @@ console.log(`Similarity: ${cosineSimilarity(vecA, vecB)}`);  // 1.0
 | `@ruvector/exotic-wasm` | <150KB | NAO, Morphogenetic, Time Crystal |
 | `@ruvector/nervous-system-wasm` | <100KB | BTSP, HDC (10K-bit), WTA, Global Workspace |
 | `@ruvector/attention-unified-wasm` | <200KB | 18+ attention mechanisms, unified API |
+| `@ruvnet/ruvector-verified-wasm` | <80KB | Formal proof verification in browser/edge |
 
 **Common Patterns:**
 
@@ -4164,10 +4745,11 @@ curl -X POST http://localhost:8080/search \
 <details>
 <summary>📚 Production Examples</summary>
 
-28 production-ready examples demonstrating RuVector integration patterns.
+34 production-ready examples demonstrating RuVector integration patterns.
 
 | Example | Description | Type |
 |---------|-------------|------|
+| [**security_hardened.rvf**](./examples/security_hardened.rvf) | **Security RVF: 22 capabilities — TEE, AIDefence, eBPF, RBAC, Paranoid policy** | Rust/RVF |
 | [agentic-jujutsu](./examples/agentic-jujutsu) | Quantum-resistant version control for AI agents (23x faster than Git) | Rust |
 | [mincut](./examples/mincut) | 6 self-organizing network demos: strange loops, time crystals, causal discovery | Rust |
 | [subpolynomial-time](./examples/subpolynomial-time) | n^0.12 subpolynomial algorithm demos | Rust |
@@ -4193,6 +4775,14 @@ curl -X POST http://localhost:8080/search \
 | [wasm](./examples/wasm) | Core WASM examples and bindings | WASM |
 | [nodejs](./examples/nodejs) | Node.js integration examples | Node.js |
 | [rust](./examples/rust) | Core Rust usage examples | Rust |
+| [dna](./examples/dna) | rvDNA: AI-native genomic analysis, variant calling, `.rvdna` format | Rust |
+| [delta-behavior](./examples/delta-behavior) | Mathematics of systems that refuse to collapse — behavioral change tracking | Rust |
+| [data](./examples/data) | Dataset discovery framework — graph-based pattern finding in massive datasets | Rust |
+| [prime-radiant](./examples/prime-radiant) | Prime-Radiant coherence engine examples and usage demos | Rust |
+| [benchmarks](./examples/benchmarks) | Comprehensive benchmarks for temporal reasoning and vector operations | Rust |
+| [vwm-viewer](./examples/vwm-viewer) | Visual vector world model viewer (HTML Canvas) | HTML |
+| [**verified-applications**](./examples/verified-applications) | **10 exotic domains: weapons filter, medical diagnostics, financial routing, agent contracts, sensor swarm, quantization proof, AGI memory, vector signatures, simulation integrity, legal forensics** | Rust |
+| [rvf-kernel-optimized](./examples/rvf-kernel-optimized) | Verified + hyper-optimized Linux kernel RVF with proof-carrying ingest | Rust |
 
 </details>
 
@@ -4662,7 +5252,15 @@ crates/
 ├── ruvector-gnn/            # GNN layers, compression, training
 ├── ruvector-tiny-dancer-core/  # AI agent routing (FastGRNN)
 ├── ruvector-*-wasm/         # WebAssembly bindings
-└── ruvector-*-node/         # Node.js bindings (napi-rs)
+├── ruvector-*-node/         # Node.js bindings (napi-rs)
+└── rvf/                     # RVF Cognitive Containers (13 crates)
+    ├── rvf-types/           #   Segment types, headers (no_std)
+    ├── rvf-runtime/         #   Store API, COW engine, compaction
+    ├── rvf-kernel/          #   Linux kernel builder
+    ├── rvf-ebpf/            #   eBPF programs (XDP/TC/socket)
+    ├── rvf-launch/          #   QEMU microvm launcher
+    ├── rvf-cli/             #   CLI with 17 subcommands
+    └── ...                  #   wire, manifest, index, quant, crypto, server, import
 ```
 
 </details>
@@ -4690,8 +5288,8 @@ MIT License — free for commercial and personal use.
 
 <div align="center">
 
-**Built by [rUv](https://ruv.io)** • [GitHub](https://github.com/ruvnet/ruvector) • [npm](https://npmjs.com/package/ruvector) • [Docs](./docs/)
+**Built by [rUv](https://ruv.io)** • [GitHub](https://github.com/ruvnet/ruvector) • [npm](https://npmjs.com/package/ruvector) • [crates.io](https://crates.io/crates/rvf-runtime) • [Docs](./docs/) • [RVF](./crates/rvf/README.md)
 
-*Vector search that gets smarter over time.*
+*Vector search that gets smarter over time — now shipping as cognitive containers.*
 
 </div>

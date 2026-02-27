@@ -1,16 +1,17 @@
 [package]
 name = "ruvector-attention-node"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 description = "Node.js bindings for ruvector-attention"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/ruvnet/ruvector"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-ruvector-attention = { path = "../ruvector-attention", default-features = false }
+ruvector-attention = { version = "2.0", path = "../ruvector-attention", default-features = false }
 napi = { version = "2", default-features = false, features = ["napi9", "async", "serde-json"] }
 napi-derive = "2"
 serde = { version = "1.0", features = ["derive"] }

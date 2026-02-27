@@ -5,7 +5,7 @@ This guide covers installation of Ruvector for all supported platforms: Rust, No
 ## Prerequisites
 
 ### Rust
-- **Rust 1.77+** (latest stable recommended)
+- **Rust 1.80+** (latest stable recommended)
 - **Cargo** (included with Rust)
 
 Install Rust from [rustup.rs](https://rustup.rs/):
@@ -30,7 +30,15 @@ Download from [nodejs.org](https://nodejs.org/)
 #### Add to Cargo.toml
 ```toml
 [dependencies]
-ruvector-core = "0.1.0"
+ruvector-core = "2.0"
+```
+
+For the RVF binary format (separate workspace in `crates/rvf`):
+```toml
+[dependencies]
+rvf-runtime = "0.2"
+rvf-crypto = "0.2"
+rvf-types = "0.2"
 ```
 
 #### Build with optimizations
@@ -45,15 +53,15 @@ RUSTFLAGS="-C target-cpu=native" cargo build --release
 RUSTFLAGS="-C target-feature=+avx2,+fma" cargo build --release
 ```
 
-#### Optional features
+#### Optional features (ruvector-core)
 ```toml
 [dependencies]
-ruvector-core = { version = "0.1.0", features = ["agenticdb", "advanced"] }
+ruvector-core = { version = "2.0", features = ["hnsw", "storage"] }
 ```
 
 Available features:
-- `agenticdb`: AgenticDB API compatibility (enabled by default)
-- `advanced`: Advanced features (product quantization, hybrid search)
+- `hnsw`: HNSW indexing (enabled by default)
+- `storage`: Persistent storage backend
 - `simd`: SIMD intrinsics (enabled by default on x86_64)
 
 ### 2. Node.js Package
@@ -81,10 +89,10 @@ console.log('Ruvector loaded successfully!');
 
 #### Platform-specific binaries
 
-Ruvector uses NAPI-RS for native bindings. Pre-built binaries are available for:
-- **Linux**: x64, arm64 (glibc 2.17+)
-- **macOS**: x64 (10.13+), arm64 (11.0+)
-- **Windows**: x64, arm64
+RuVector uses NAPI-RS for native bindings. Pre-built binaries are available for:
+- **Linux**: x64 (glibc), x64 (musl), arm64 (glibc), arm64 (musl)
+- **macOS**: x64, arm64 (Apple Silicon)
+- **Windows**: x64
 
 If no pre-built binary is available, it will compile from source (requires Rust).
 
@@ -92,7 +100,13 @@ If no pre-built binary is available, it will compile from source (requires Rust)
 
 #### NPM package
 ```bash
-npm install ruvector-wasm
+npm install @ruvector/wasm
+```
+
+There are also specialized WASM packages:
+```bash
+npm install @ruvector/rvf-wasm     # RVF format in browser
+npm install @ruvector/gnn-wasm     # Graph neural networks
 ```
 
 #### Basic usage
@@ -100,11 +114,11 @@ npm install ruvector-wasm
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ruvector WASM Demo</title>
+    <title>RuVector WASM Demo</title>
 </head>
 <body>
     <script type="module">
-        import init, { VectorDB } from './node_modules/ruvector-wasm/ruvector_wasm.js';
+        import init, { VectorDB } from '@ruvector/wasm';
 
         async function main() {
             await init();
@@ -123,47 +137,9 @@ npm install ruvector-wasm
 </html>
 ```
 
-#### SIMD detection
-```javascript
-import { simd } from 'wasm-feature-detect';
-
-const module = await simd()
-  ? import('ruvector-wasm/ruvector_simd.wasm')
-  : import('ruvector-wasm/ruvector.wasm');
-```
-
-#### Web Workers for parallelism
-```javascript
-// main.js
-const workers = [];
-const numWorkers = navigator.hardwareConcurrency || 4;
-
-for (let i = 0; i < numWorkers; i++) {
-    workers.push(new Worker('worker.js'));
-}
-
-// worker.js
-importScripts('./ruvector_wasm.js');
-
-self.onmessage = async (e) => {
-    const { action, data } = e.data;
-    const db = new VectorDB(128);
-
-    if (action === 'search') {
-        const results = db.search(data.query, data.k);
-        self.postMessage({ results });
-    }
-};
-```
-
 ### 4. CLI Tool
 
-#### Install from crates.io
-```bash
-cargo install ruvector-cli
-```
-
-#### Build from source
+#### Build from source (not yet on crates.io)
 ```bash
 git clone https://github.com/ruvnet/ruvector.git
 cd ruvector
@@ -173,19 +149,19 @@ cargo install --path crates/ruvector-cli
 #### Verify installation
 ```bash
 ruvector --version
-# Output: ruvector 0.1.0
 ```
 
-#### Shell completion
+#### Available subcommands
 ```bash
-# Bash
-ruvector completions bash > /etc/bash_completion.d/ruvector
-
-# Zsh
-ruvector completions zsh > /usr/local/share/zsh/site-functions/_ruvector
-
-# Fish
-ruvector completions fish > ~/.config/fish/completions/ruvector.fish
+ruvector create    # Create a new database
+ruvector insert    # Insert vectors
+ruvector search    # Search for similar vectors
+ruvector info      # Show database info
+ruvector export    # Export database
+ruvector import    # Import data
+ruvector benchmark # Run benchmarks
+ruvector graph     # Graph database operations (create, query, shell, serve)
+ruvector hooks     # Hooks management
 ```
 
 ## Platform-Specific Notes
@@ -240,27 +216,21 @@ Then follow Linux instructions.
 
 ## Docker
 
-### Pre-built image
-```bash
-docker pull ruvector/ruvector:latest
-docker run -p 8080:8080 ruvector/ruvector:latest
-```
-
 ### Build from source
 ```dockerfile
-FROM rust:1.77 as builder
+FROM rust:1.80 as builder
 WORKDIR /app
 COPY . .
-RUN cargo build --release
+RUN cargo build --release -p ruvector-cli
 
 FROM debian:bookworm-slim
-COPY --from=builder /app/target/release/ruvector-cli /usr/local/bin/
-CMD ["ruvector-cli", "serve", "--host", "0.0.0.0"]
+COPY --from=builder /app/target/release/ruvector /usr/local/bin/
+CMD ["ruvector", "--help"]
 ```
 
 ```bash
 docker build -t ruvector .
-docker run -v $(pwd)/data:/data -p 8080:8080 ruvector
+docker run -v $(pwd)/data:/data ruvector
 ```
 
 ## Verification
@@ -268,9 +238,12 @@ docker run -v $(pwd)/data:/data -p 8080:8080 ruvector
 ### Rust
 ```rust
 use ruvector_core::VectorDB;
+use ruvector_core::types::DbOptions;
 
-fn main() {
-    println!("Ruvector version: {}", env!("CARGO_PKG_VERSION"));
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let db = VectorDB::new(DbOptions::default())?;
+    println!("VectorDB created successfully");
+    Ok(())
 }
 ```
 

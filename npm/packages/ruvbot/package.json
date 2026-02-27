@@ -1,6 +1,6 @@
 {
   "name": "ruvbot",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "description": "Enterprise-grade self-learning AI assistant with military-strength security, 150x faster vector search, and 12+ LLM models",
   "main": "dist/index.js",
   "module": "dist/esm/index.js",
@@ -40,6 +40,9 @@
     "build": "npm run build:cjs && npm run build:esm",
     "build:cjs": "tsc -p tsconfig.json",
     "build:esm": "tsc -p tsconfig.esm.json",
+    "build:rvf": "node scripts/build-rvf.js",
+    "run:rvf": "node scripts/run-rvf.js",
+    "inspect:rvf": "node scripts/run-rvf.js --inspect",
     "dev": "tsc -w",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
@@ -134,6 +137,8 @@
     "dist",
     "bin",
     "scripts",
+    "kernel/bzImage",
+    "ruvbot.rvf",
     "src/api/public",
     ".env.example",
     "README.md"

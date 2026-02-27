@@ -10,6 +10,14 @@ This guide covers advanced features of Ruvector including hybrid search, filtere
 4. [Product Quantization](#product-quantization)
 5. [Conformal Prediction](#conformal-prediction)
 6. [Performance Optimization](#performance-optimization)
+7. [Collection Management](#collection-management)
+8. [Additional VectorDB Operations](#additional-vectordb-operations)
+9. [Server REST API](#server-rest-api)
+10. [Advanced Filter Expressions](#advanced-filter-expressions)
+11. [Graph Database](#graph-database)
+12. [Metrics & Health Monitoring](#metrics--health-monitoring)
+13. [RVF Format Capabilities](#rvf-format-capabilities)
+14. [Additional Crates](#additional-crates)
 
 ## Hybrid Search
 
@@ -224,10 +232,10 @@ use ruvector_core::{EnhancedPQ, PQConfig};
 fn product_quantization_example() -> Result<(), Box<dyn std::error::Error>> {
     let mut options = DbOptions::default();
     options.dimensions = 128;
-    options.quantization = QuantizationConfig::Product {
+    options.quantization = Some(QuantizationConfig::Product {
         subspaces: 16,  // Split into 16 subvectors of 8D each
         k: 256,         // 256 centroids per subspace
-    };
+    });
 
     let db = VectorDB::new(options)?;
 
@@ -360,7 +368,7 @@ cargo build --release -vv | grep target-cpu
 
 ```rust
 let mut options = DbOptions::default();
-options.mmap_vectors = true;  // Enable memory mapping
+// options.mmap_vectors = true;  // Enable memory mapping (if supported by storage backend)
 
 let db = VectorDB::new(options)?;
 ```
@@ -408,26 +416,26 @@ let results: Vec<Vec<SearchResult>> = queries
 
 ```rust
 // For speed (lower recall)
-options.hnsw.ef_search = 50;
+options.hnsw_config.as_mut().unwrap().ef_search = 50;
 
 // For accuracy (slower)
-options.hnsw.ef_search = 500;
+options.hnsw_config.as_mut().unwrap().ef_search = 500;
 
 // Balanced (recommended)
-options.hnsw.ef_search = 100;
+options.hnsw_config.as_mut().unwrap().ef_search = 100;
 ```
 
 ### 6. Quantization
 
 ```rust
 // 4x compression, 97-99% recall
-options.quantization = QuantizationConfig::Scalar;
+options.quantization = Some(QuantizationConfig::Scalar);
 
 // 16x compression, 90-95% recall
-options.quantization = QuantizationConfig::Product {
+options.quantization = Some(QuantizationConfig::Product {
     subspaces: 16,
     k: 256,
-};
+});
 ```
 
 ### 7. Distance Metric Selection
@@ -463,18 +471,17 @@ fn advanced_demo() -> Result<(), Box<dyn std::error::Error>> {
     let mut options = DbOptions::default();
     options.dimensions = 384;
     options.storage_path = "./advanced_db.db".to_string();
-    options.hnsw = HnswConfig {
+    options.hnsw_config = Some(HnswConfig {
         m: 64,
         ef_construction: 400,
         ef_search: 200,
         max_elements: 10_000_000,
-    };
+    });
     options.distance_metric = DistanceMetric::Cosine;
-    options.quantization = QuantizationConfig::Product {
+    options.quantization = Some(QuantizationConfig::Product {
         subspaces: 16,
         k: 256,
-    };
-    options.mmap_vectors = true;
+    });
 
     let db = VectorDB::new(options)?;
 
@@ -528,6 +535,294 @@ fn advanced_demo() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+## Collection Management
+
+Organize vectors into named collections with alias support.
+
+### Rust
+
+```rust
+use ruvector_collections::CollectionManager;
+
+let manager = CollectionManager::new("./data")?;
+
+// Create collections
+manager.create_collection("products", CollectionConfig {
+    dimensions: 384,
+    distance_metric: "cosine".into(),
+    ..Default::default()
+})?;
+
+// List, delete, stats
+let names = manager.list_collections()?;
+let stats = manager.collection_stats("products")?;
+println!("Vectors: {}, Size: {} bytes", stats.vectors_count, stats.disk_size_bytes);
+
+// Aliases — point multiple names at one collection
+manager.create_alias("shop", "products")?;
+manager.list_aliases()?;  // [("shop", "products")]
+manager.delete_alias("shop")?;
+```
+
+### Node.js
+
+```javascript
+const { CollectionManager } = require('ruvector');
+
+const mgr = new CollectionManager('./data');
+
+mgr.createCollection('products', { dimensions: 384, distanceMetric: 'Cosine' });
+const collections = mgr.listCollections();
+const stats = mgr.getStats('products');
+console.log(`Vectors: ${stats.vectorsCount}, RAM: ${stats.ramSizeBytes}`);
+
+mgr.createAlias('shop', 'products');
+mgr.listAliases();
+mgr.deleteAlias('shop');
+```
+
+## Additional VectorDB Operations
+
+Beyond `insert`, `search`, and `insert_batch`, the Node.js bindings expose:
+
+```javascript
+const { VectorDB } = require('ruvector');
+const db = new VectorDB({ dimensions: 128, storagePath: './db' });
+
+// Retrieve a single vector
+const entry = db.get('vec_0001');
+
+// Delete a vector
+db.delete('vec_0001');
+
+// Count vectors
+const count = db.len();
+const empty = db.isEmpty();
+```
+
+## Server REST API
+
+`ruvector-server` exposes an Axum-based HTTP API for remote access.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/collections` | Create a collection |
+| `GET` | `/collections` | List all collections |
+| `GET` | `/collections/:name` | Get collection info |
+| `DELETE` | `/collections/:name` | Delete a collection |
+| `PUT` | `/collections/:name/points` | Upsert vectors |
+| `POST` | `/collections/:name/points/search` | Search (with optional `score_threshold`) |
+| `GET` | `/collections/:name/points/:id` | Retrieve a point by ID |
+| `GET` | `/health` | Health check |
+| `GET` | `/ready` | Readiness probe |
+
+### Example — cURL
+
+```bash
+# Create a collection
+curl -X POST http://localhost:8080/collections \
+  -H 'Content-Type: application/json' \
+  -d '{"name": "docs", "dimensions": 384, "distanceMetric": "cosine"}'
+
+# Upsert vectors
+curl -X PUT http://localhost:8080/collections/docs/points \
+  -H 'Content-Type: application/json' \
+  -d '{"points": [{"id": "doc_1", "vector": [0.1, ...], "metadata": {"title": "Hello"}}]}'
+
+# Search
+curl -X POST http://localhost:8080/collections/docs/points/search \
+  -H 'Content-Type: application/json' \
+  -d '{"vector": [0.1, ...], "k": 10, "scoreThreshold": 0.8}'
+```
+
+## Advanced Filter Expressions
+
+`ruvector-filter` supports rich filter expressions beyond simple equality.
+
+### Available Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `eq` | Equality | `FilterExpression::eq("status", "active")` |
+| `ne` | Not equal | `FilterExpression::ne("status", "deleted")` |
+| `gt`, `gte` | Greater than (or equal) | `FilterExpression::gte("score", 0.8)` |
+| `lt`, `lte` | Less than (or equal) | `FilterExpression::lt("price", 100)` |
+| `in_values` | Set membership | `FilterExpression::in_values("tag", vec!["a","b"])` |
+| `match_text` | Text search | `FilterExpression::match_text("content", "rust")` |
+| `geo_radius` | Geospatial radius | `FilterExpression::geo_radius("location", 37.7, -122.4, 5000.0)` |
+| `and`, `or` | Boolean combinators | `FilterExpression::and(vec![f1, f2])` |
+| `not` | Negation | `FilterExpression::not(expr)` |
+
+### Payload Indexing
+
+Create field indices for fast filtered search:
+
+```rust
+use ruvector_filter::{PayloadIndexManager, IndexType};
+
+let mut index_mgr = PayloadIndexManager::new();
+index_mgr.create_index("category", IndexType::Keyword)?;
+index_mgr.create_index("price", IndexType::Float)?;
+index_mgr.create_index("location", IndexType::Geo)?;
+index_mgr.create_index("description", IndexType::Text)?;
+
+// Index a payload
+index_mgr.index_payload("doc_1", &json!({
+    "category": "electronics",
+    "price": 299.99,
+    "location": {"lat": 37.7749, "lon": -122.4194},
+    "description": "High-performance vector database"
+}))?;
+```
+
+### Node.js
+
+```javascript
+const results = await db.search({
+    vector: queryVec,
+    k: 10,
+    filter: {
+        and: [
+            { field: 'category', op: 'eq', value: 'electronics' },
+            { field: 'price', op: 'lte', value: 500 }
+        ]
+    }
+});
+```
+
+## Graph Database
+
+`ruvector-graph` provides a full property graph database with Cypher query support.
+
+### CLI
+
+```bash
+# Create a graph database
+ruvector graph create --db ./graph.db --dimensions 128
+
+# Run Cypher queries
+ruvector graph query --db ./graph.db \
+  --query "CREATE (n:Person {name: 'Alice', age: 30})"
+
+ruvector graph query --db ./graph.db \
+  --query "MATCH (n:Person) WHERE n.age > 25 RETURN n.name, n.age"
+
+# Interactive shell
+ruvector graph shell --db ./graph.db
+
+# Start graph server
+ruvector graph serve --db ./graph.db --port 8081
+```
+
+### Rust API
+
+```rust
+use ruvector_graph::{GraphDB, NodeBuilder, EdgeBuilder};
+
+let db = GraphDB::new("./graph.db")?;
+
+// Create nodes
+let alice = NodeBuilder::new("Person")
+    .property("name", "Alice")
+    .property("age", 30)
+    .build();
+let bob = NodeBuilder::new("Person")
+    .property("name", "Bob")
+    .build();
+
+let alice_id = db.insert_node(alice)?;
+let bob_id = db.insert_node(bob)?;
+
+// Create edges
+let edge = EdgeBuilder::new("KNOWS", alice_id, bob_id)
+    .property("since", 2024)
+    .build();
+db.insert_edge(edge)?;
+
+// Cypher queries
+let results = db.execute_cypher("MATCH (a:Person)-[:KNOWS]->(b) RETURN a.name, b.name")?;
+```
+
+### Hybrid Vector + Graph
+
+```rust
+use ruvector_graph::HybridIndex;
+
+// Combine vector similarity with graph traversal
+let hybrid = HybridIndex::new(&graph_db, &vector_db)?;
+let results = hybrid.semantic_search(query_vector, 10)?;
+```
+
+## Metrics & Health Monitoring
+
+`ruvector-metrics` provides Prometheus-compatible metrics.
+
+### Exposed Metrics
+
+| Metric | Type | Description |
+|--------|------|-------------|
+| `ruvector_search_requests_total` | Counter | Searches by collection/status |
+| `ruvector_search_latency_seconds` | Histogram | Search latency |
+| `ruvector_insert_requests_total` | Counter | Inserts by collection |
+| `ruvector_insert_latency_seconds` | Histogram | Insert latency |
+| `ruvector_vectors_total` | Gauge | Total vectors per collection |
+| `ruvector_collections_total` | Gauge | Number of collections |
+| `ruvector_memory_usage_bytes` | Gauge | Memory utilization |
+| `ruvector_uptime_seconds` | Gauge | Server uptime |
+
+### Node.js
+
+```javascript
+const metrics = db.getMetrics();   // Prometheus text format
+const health = db.getHealth();     // { status, uptime, ... }
+```
+
+## RVF Format Capabilities
+
+The RVF binary format (via `rvf-runtime`) provides capabilities beyond basic vector storage. See [`examples/rvf/`](../../examples/rvf/) for complete working examples.
+
+### Key Capabilities
+
+| Feature | API | Description |
+|---------|-----|-------------|
+| Quality envelopes | `query_with_envelope()` | Response quality, HNSW vs safety-net stats, budget tracking |
+| Audited queries | `query_audited()` | Auto-appends witness entry per search for compliance |
+| Membership filters | `MembershipFilter` | Bitmap-based tenant isolation (include/exclude modes) |
+| DoS hardening | `BudgetTokenBucket`, `NegativeCache`, `ProofOfWork` | Three-layer defense |
+| Adversarial detection | `is_degenerate_distribution()`, `centroid_distance_cv()` | Detects uniform attack vectors |
+| WASM embedding | `embed_wasm()` / `extract_wasm()` | Self-bootstrapping query engine |
+| Kernel embedding | `embed_kernel()` / `extract_kernel()` | Linux image with cmdline |
+| eBPF embedding | `embed_ebpf()` / `extract_ebpf()` | Socket filter programs |
+| Dashboard embedding | `embed_dashboard()` / `extract_dashboard()` | HTML/JS bundles |
+| Delete + compact | `delete()` + `compact()` | Soft-delete with space reclamation |
+| Lineage derivation | `derive()` | Parent-child snapshots with depth tracking |
+| COW branching | `freeze()` + `branch()` | Copy-on-write staging environments |
+| AGI containers | `AgiContainerBuilder` | Self-describing agent manifests |
+| Witness chains | `create_witness_chain()` | Cryptographic audit trails (SHAKE256) |
+| Segment directory | `segment_dir()` | Enumerate all segments in an RVF file |
+
+## Additional Crates
+
+RuVector includes 80+ crates. Key specialized crates include:
+
+| Crate | npm Package | Description |
+|-------|------------|-------------|
+| `ruvector-gnn` | `@ruvector/gnn` | GNN training with EWC forgetting mitigation, LoRA, curriculum learning |
+| `ruvector-attention` | `@ruvector/attention` | 50+ attention mechanisms (flash, sparse, hyperbolic, sheaf, MoE) |
+| `ruvector-mincut` | `@ruvector/mincut` | Subpolynomial-time dynamic graph partitioning |
+| `ruvector-solver` | `@ruvector/solver` | Sparse linear solvers (Neumann, CG, forward/backward push) |
+| `ruvector-graph` | `@ruvector/graph-node` | Property graph DB with Cypher, hybrid vector+graph |
+| `ruvector-graph-transformer` | `@ruvector/graph-transformer` | Transformer-based graph encoding |
+| `ruvllm` | — | Full LLM serving with paged attention, speculative decoding, LoRA |
+| `sona` | — | Self-Optimizing Neural Architecture (continual learning) |
+| `rvlite` | — | Lightweight vector DB for edge devices |
+| `ruvector-verified` | — | Cryptographic proof system for vector correctness |
+| `ruvector-postgres` | — | PostgreSQL extension for vector operations |
+
+See the [API reference](../api/) and individual crate READMEs for detailed documentation.
+
 ## Best Practices
 
 1. **Start simple**: Begin with default settings, optimize later
@@ -537,11 +832,15 @@ fn advanced_demo() -> Result<(), Box<dyn std::error::Error>> {
 5. **Tune HNSW gradually**: Increase parameters only if needed
 6. **Use appropriate metrics**: Cosine for normalized, Euclidean otherwise
 7. **Enable SIMD**: Always compile with target-cpu=native
-8. **Memory-map large datasets**: Essential for datasets > RAM
+8. **Use collections**: Organize vectors by domain for better management
+9. **Monitor with metrics**: Enable Prometheus metrics in production
+10. **Use RVF for self-contained files**: When you need portability with embedded segments
 
 ## Next Steps
 
-- [AgenticDB Tutorial](AGENTICDB_TUTORIAL.md) - Advanced AI agent features
+- [AgenticDB Quickstart](AGENTICDB_QUICKSTART.md) - AI agent memory features
 - [Performance Tuning](../optimization/PERFORMANCE_TUNING_GUIDE.md) - Detailed optimization
 - [API Reference](../api/) - Complete API documentation
-- [Examples](../../examples/) - Working code examples
+- [Cypher Reference](../api/CYPHER_REFERENCE.md) - Graph query language
+- [RVF Examples](../../examples/rvf/) - Working RVF format examples
+- [Examples](../../examples/) - All working code examples

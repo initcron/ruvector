@@ -81,14 +81,10 @@ impl JsRuvectorLayer {
         heads: usize,
         dropout: f32,
     ) -> Result<JsRuvectorLayer, JsValue> {
-        if dropout < 0.0 || dropout > 1.0 {
-            return Err(JsValue::from_str("Dropout must be between 0.0 and 1.0"));
-        }
+        let inner = RuvectorLayer::new(input_dim, hidden_dim, heads, dropout)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-        Ok(JsRuvectorLayer {
-            inner: RuvectorLayer::new(input_dim, hidden_dim, heads, dropout),
-            hidden_dim,
-        })
+        Ok(JsRuvectorLayer { inner, hidden_dim })
     }
 
     /// Forward pass through the GNN layer

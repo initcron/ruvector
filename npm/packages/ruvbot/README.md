@@ -12,6 +12,7 @@
 
 ## Table of Contents
 
+- [RVF Microkernel](#rvf-microkernel---self-contained-boot)
 - [Why RuvBot?](#why-ruvbot-over-clawdbot)
 - [Comparison](#ruvbot-vs-clawdbot-comparison)
 - [Requirements](#requirements)
@@ -32,6 +33,83 @@
 ---
 
 RuvBot is a next-generation personal AI assistant powered by RuVector's WASM vector operations. It addresses **critical security gaps found in Clawdbot** while delivering 150x faster performance, self-learning neural architecture, and enterprise-grade multi-tenancy.
+
+## RVF Microkernel - Self-Contained Boot
+
+RuvBot ships as a **self-contained RVF (RuVector Format) file** that includes a real Linux 6.6 microkernel and the full Node.js runtime bundle. A single 3.7 MB binary boots directly on any x86_64 hypervisor.
+
+### What's Inside
+
+| Segment | Size | Contents |
+|---------|------|----------|
+| `KERNEL_SEG` | 1.6 MB | Linux 6.6.80 bzImage (gzip compressed) |
+| `WASM_SEG` | 2.2 MB | Node.js runtime bundle (all dist/ + bin/) |
+| `META_SEG` | 793 B | Package metadata (name, version, format) |
+| `PROFILE_SEG` | 399 B | Default agent profile |
+| `WITNESS_SEG` | 426 B | Genesis witness chain (build provenance) |
+| `MANIFEST_SEG` | 151 B | 6-segment manifest |
+
+### Build the RVF
+
+```bash
+# Build from package (uses kernel/bzImage)
+npm run build:rvf
+
+# Build with custom kernel
+node scripts/build-rvf.js --kernel /path/to/bzImage --output ruvbot.rvf
+```
+
+### Run the RVF
+
+```bash
+# Inspect segments
+node scripts/run-rvf.js ruvbot.rvf --inspect
+
+# Boot with QEMU (builds initramfs, launches kernel)
+node scripts/run-rvf.js ruvbot.rvf --boot
+
+# Extract and run Node.js runtime directly
+node scripts/run-rvf.js ruvbot.rvf --runtime
+```
+
+### Boot Output
+
+```
+================================================================
+  RuvBot RVF Microkernel - Self-Contained Runtime
+================================================================
+
+  Kernel:  Linux 6.6.80
+  Arch:    x86_64
+  MemTotal: 52992 kB
+
+  RVF Segments loaded:
+    [KERNEL]   Linux 6.6.80 bzImage (x86_64)
+    [WASM]     RuvBot Node.js runtime bundle
+    [META]     ruvbot@0.3.1 [rvf-self-contained]
+    [PROFILE]  Default agent profile
+    [WITNESS]  Genesis witness chain
+    [MANIFEST] 6-segment manifest
+
+  Status: BOOT OK - All segments verified
+================================================================
+```
+
+### Supported Hypervisors
+
+| Hypervisor | Command |
+|------------|---------|
+| QEMU | `qemu-system-x86_64 -kernel bzImage -initrd initramfs.cpio.gz -nographic` |
+| Firecracker | `firecracker --kernel bzImage --initrd initramfs.cpio.gz` |
+| Cloud Hypervisor | `cloud-hypervisor --kernel bzImage --initramfs initramfs.cpio.gz` |
+
+### Kernel Configuration
+
+The included Linux 6.6.80 kernel is built from source with a minimal config:
+
+- **Base**: `tinyconfig` (smallest possible kernel)
+- **Enabled**: 64-bit, VirtIO (PCI, NET, BLK, Console), Serial 8250, TCP/IPv4/IPv6, ProcFS, SysFS, DevTmpFS, ELF, initramfs (gzip)
+- **Result**: 1.6 MB bzImage -- boots in ~1 second
 
 ## Why RuvBot Over Clawdbot?
 
@@ -1360,16 +1438,19 @@ npm run build
 | `fastify` | REST API server |
 | `@slack/bolt` | Slack integration |
 
-## What's New in v0.1.0
+## What's New in v0.3.1
 
-- **Gemini 2.5 Pro Support** - Default model with state-of-the-art reasoning
-- **12+ LLM Models** - Gemini, Claude, GPT, Qwen, DeepSeek, Llama
-- **AIDefence Integration** - Military-grade adversarial protection
-- **6-Layer Security** - Defense-in-depth architecture
-- **HNSW Vector Search** - 150x-12,500x faster than linear search
-- **SONA Learning** - Self-optimizing neural architecture
-- **Cloud Run Ready** - Serverless deployment with scale-to-zero
-- **Multi-tenancy** - PostgreSQL RLS for enterprise isolation
+- **RVF Microkernel** - Self-contained boot with real Linux 6.6.80 kernel (3.7 MB)
+- **RVF Runner** - Extract, inspect, and boot RVF files with QEMU/Firecracker
+- **Initramfs Builder** - On-the-fly initramfs generation with static init binary
+- **6-Segment Format** - Kernel, WASM runtime, metadata, profile, witness, manifest
+
+### Previous Releases
+
+**v0.1.0**
+- Gemini 2.5 Pro Support, 12+ LLM Models, AIDefence Integration
+- 6-Layer Security, HNSW Vector Search (150x-12,500x faster)
+- SONA Learning, Cloud Run Ready, Multi-tenancy
 
 ## License
 

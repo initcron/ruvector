@@ -8,43 +8,35 @@
 [![npm](https://img.shields.io/npm/v/@ruvector/core.svg)](https://www.npmjs.com/package/@ruvector/core)
 [![Security](https://img.shields.io/badge/Security-Audited-green.svg)](docs/SECURITY_AUDIT_REPORT.md)
 
-**The most advanced PostgreSQL vector database extension.** A drop-in pgvector replacement with **290+ SQL functions**, SIMD acceleration, 39 attention mechanisms, GNN layers, hyperbolic embeddings, mincut-gated transformers, hybrid search, multi-tenancy, self-healing, and self-learning capabilities.
+**A drop-in pgvector replacement that learns from your queries and gets smarter over time.**
 
-## v2.0.0 Highlights (December 2025)
+Most PostgreSQL vector extensions give you storage and search -- and that is it. RuVector-Postgres adds 143 SQL functions that bring graph neural networks, attention mechanisms, hyperbolic embeddings, self-healing indexes, and local embedding generation directly into your existing database. No sidecar service, no external API calls. Install the extension and `SELECT` your way to better results.
 
-- **Mincut-Gated Transformers**: Ultra-low-latency inference with coherence control via λ signals
-- **Hybrid Search**: Vector + BM25 fusion with RRF and linear blending
-- **Multi-Tenancy**: Row-level security with automatic tenant isolation
-- **Self-Healing**: Automated index repair with integrity validation
-- **Integrity Control**: Stoer-Wagner mincut-based quality assurance
-- **IVFFlat Index**: Full inverted list storage with proper page management
-- **HNSW Index**: Fixed query execution with heap scan integration
-- **Security Audit**: 3 critical SQL injection vulnerabilities fixed
-- **GNN Module**: Complete Graph Neural Network operators
+| | RuVector-Postgres | pgvector | Separate vector service |
+|---|---|---|---|
+| **Search quality** | GNN and 46 attention mechanisms improve results over time | Static HNSW/IVFFlat | Depends on service |
+| **Embeddings** | Generate locally inside Postgres -- 6 models, no API costs | External API required | External API required |
+| **Graph queries** | Full Cypher engine + SPARQL 1.1 in SQL | Not available | Rarely available |
+| **Hybrid search** | Vector + BM25 fusion (RRF, linear blending) built in | Not available | Some services |
+| **Self-healing** | Detects and repairs index corruption automatically | Manual maintenance | Varies |
+| **Multi-tenancy** | Row-level tenant isolation out of the box | Build it yourself | Paid tiers |
+| **Advanced math** | Wasserstein OT, spectral clustering, persistent homology | Not available | Not available |
+| **SIMD** | Full AVX-512/NEON acceleration | Partial | N/A |
+| **Cost** | Free forever -- open source (MIT) | Free | Per-query or per-vector pricing |
 
-## Why RuVector?
+## Key Features
 
-| Feature | pgvector | RuVector-Postgres |
-|---------|----------|-------------------|
-| Vector Search | HNSW, IVFFlat | HNSW, IVFFlat (optimized) |
-| Distance Metrics | 3 | 8+ (including hyperbolic) |
-| **Local Embeddings** | - | **6 models (fastembed)** |
-| **Attention Mechanisms** | - | **39 types** |
-| **Gated Transformers** | - | **Mincut-coherence control** |
-| **Hybrid Search** | - | **RRF + Linear fusion** |
-| **Graph Neural Networks** | - | **GCN, GraphSAGE, GAT** |
-| **Hyperbolic Embeddings** | - | **Poincare, Lorentz** |
-| **Sparse Vectors / BM25** | Partial | **Full support** |
-| **Multi-Tenancy** | - | **Row-level isolation** |
-| **Self-Healing** | - | **Auto index repair** |
-| **Integrity Control** | - | **Stoer-Wagner mincut** |
-| **Self-Learning** | - | **ReasoningBank** |
-| **Neural DAG Learning** | - | **59 SQL functions** |
-| **Agent Routing** | - | **Tiny Dancer** |
-| **Graph/Cypher** | - | **Full support** |
-| **SPARQL/RDF** | - | **W3C SPARQL 1.1** |
-| AVX-512/NEON SIMD | Partial | **Full** |
-| Quantization | No | **Scalar, Product, Binary** |
+| Feature | What It Does | Why It Matters |
+|---|---|---|
+| **143 SQL functions** | Vector ops, GNN layers, attention, solvers, graph queries -- all as `SELECT` calls | Use familiar SQL instead of learning a new API |
+| **Local embeddings** | 6 fastembed models run inside PostgreSQL | No API keys, no latency, no per-call costs |
+| **46 attention mechanisms** | Flash, linear, sparse, cross, hyperbolic, mincut-gated | Transformer-grade inference without leaving the database |
+| **Sublinear solvers** | PageRank, conjugate gradient, Laplacian solver in O(log n) to O(sqrt n) | Graph analytics that scale to millions of nodes |
+| **Hyperbolic geometry** | Poincare and Lorentz distance for hierarchical data | Better results on taxonomies, org charts, knowledge graphs |
+| **Self-learning (SONA)** | Micro-LoRA trajectories with EWC++ forgetting prevention | Search parameters tune themselves to your workload |
+| **Self-healing indexes** | Automated integrity checks with Stoer-Wagner mincut validation | Indexes repair themselves -- less ops work for you |
+| **Gated transformers** | Mincut-coherence control with early exit and mixture-of-depths | 30-50% latency reduction when coherence is high |
+| **Neural DAG learning** | 59 SQL functions for query plan optimization | The database learns which execution plans work best |
 
 ## Installation
 
@@ -134,7 +126,7 @@ ORDER BY distance
 LIMIT 10;
 ```
 
-## 290+ SQL Functions
+## 143 SQL Functions
 
 RuVector exposes all advanced AI capabilities as native PostgreSQL functions.
 
@@ -200,7 +192,7 @@ SELECT ruvector_bm25_score(query_terms, doc_freqs, doc_len, avg_doc_len, total_d
 SELECT ruvector_tf_idf(term_freq, doc_freq, total_docs);
 ```
 
-### 39 Attention Mechanisms
+### 46 Attention Mechanisms
 
 Full transformer-style attention in PostgreSQL.
 
@@ -228,6 +220,121 @@ SELECT ruvector_attention_cross(query, context_keys, context_values);
 
 -- Self attention
 SELECT ruvector_attention_self(input, num_heads);
+```
+
+### Sublinear Solvers (11 functions)
+
+Graph analytics powered by ruvector-solver's O(log n) to O(sqrt(n)) algorithms.
+
+```sql
+-- PageRank (Forward Push, O(1/epsilon))
+SELECT ruvector_pagerank('{"edges":[[0,1],[1,2],[2,0]]}'::jsonb);
+
+-- Personalized PageRank from a source node
+SELECT ruvector_pagerank_personalized('{"edges":[[0,1],[1,2],[2,0]]}'::jsonb, 0);
+
+-- Solve sparse linear system Ax=b (Neumann or CG)
+SELECT ruvector_solve_sparse(matrix_json, ARRAY[1.0, 2.0]::real[], 'cg');
+
+-- Conjugate Gradient for SPD systems
+SELECT ruvector_conjugate_gradient(matrix_json, rhs);
+
+-- Graph Laplacian solver
+SELECT ruvector_solve_laplacian(laplacian_json, rhs);
+
+-- Effective resistance between nodes
+SELECT ruvector_effective_resistance(laplacian_json, 0, 1);
+
+-- Matrix sparsity analysis
+SELECT ruvector_matrix_analyze(matrix_json);
+
+-- List available solver algorithms
+SELECT * FROM ruvector_solver_info();
+```
+
+### Math Distances & Spectral (12 functions)
+
+Statistical distances, optimal transport, and spectral graph processing.
+
+```sql
+-- Wasserstein (Earth Mover's) distance
+SELECT ruvector_wasserstein_distance(ARRAY[0.5,0.5]::real[], ARRAY[0.3,0.7]::real[]);
+
+-- Sinkhorn optimal transport with regularization
+SELECT ruvector_sinkhorn_distance(cost_json, weights_a, weights_b);
+
+-- KL divergence and Jensen-Shannon divergence
+SELECT ruvector_kl_divergence(ARRAY[0.5,0.5]::real[], ARRAY[0.3,0.7]::real[]);
+SELECT ruvector_jensen_shannon(ARRAY[0.5,0.5]::real[], ARRAY[0.3,0.7]::real[]);
+
+-- Spectral clustering
+SELECT ruvector_spectral_cluster(adjacency_json, 3);  -- k=3 clusters
+
+-- Chebyshev polynomial graph filter
+SELECT ruvector_chebyshev_filter(adj_json, signal, 'low_pass', 10);
+
+-- Heat kernel graph diffusion
+SELECT ruvector_graph_diffusion(adj_json, signal);
+
+-- Product manifold distance (Euclidean x Hyperbolic x Spherical)
+SELECT ruvector_product_manifold_distance(a, b, 3, 2, 1);
+
+-- Spherical (great-circle) distance
+SELECT ruvector_spherical_distance(ARRAY[1,0,0]::real[], ARRAY[0,1,0]::real[]);
+```
+
+### Topological Data Analysis (7 functions)
+
+Persistent homology and topological feature extraction from point clouds.
+
+```sql
+-- Persistent homology via Vietoris-Rips filtration
+SELECT ruvector_persistent_homology('[[1,0],[0,1],[-1,0],[0,-1]]'::jsonb, 1, 3.0);
+
+-- Betti numbers at a given radius
+SELECT ruvector_betti_numbers('[[0,0],[1,0],[0,1]]'::jsonb, 1.5);
+
+-- Bottleneck distance between persistence diagrams
+SELECT ruvector_bottleneck_distance(diagram_a, diagram_b);
+
+-- Wasserstein distance between persistence diagrams
+SELECT ruvector_persistence_wasserstein(diagram_a, diagram_b, 2);
+
+-- Topological summary (Betti + persistence statistics + entropy)
+SELECT ruvector_topological_summary(points_json, 1);
+
+-- Embedding drift detection via topology
+SELECT ruvector_embedding_drift(old_embeddings, new_embeddings);
+
+-- Build Vietoris-Rips simplicial complex
+SELECT ruvector_vietoris_rips(points_json, 2.0, 2);
+```
+
+### Sona Learning (4 functions)
+
+Self-Optimizing Neural Architecture with micro-LoRA and EWC++ forgetting prevention.
+
+```sql
+-- Record a learning trajectory
+SELECT ruvector_sona_learn('my_table', trajectory_json);
+
+-- Apply learned LoRA transform to an embedding
+SELECT ruvector_sona_apply('my_table', embedding);
+
+-- Check EWC++ forgetting metrics
+SELECT ruvector_sona_ewc_status('my_table');
+
+-- Get Sona engine statistics
+SELECT ruvector_sona_stats('my_table');
+```
+
+### Domain Expansion (1 function)
+
+Cross-domain transfer learning with contextual bandits.
+
+```sql
+-- Transfer embeddings to a target domain
+SELECT ruvector_domain_transfer(embeddings_json, 'target_domain');
 ```
 
 ### Graph Neural Networks (5 functions)
@@ -912,3 +1019,7 @@ MIT License - See [LICENSE](../../LICENSE)
 ## Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](../../CONTRIBUTING.md)
+
+---
+
+Part of [RuVector](https://github.com/ruvnet/ruvector) -- the self-learning vector database.

@@ -1,49 +1,73 @@
-# Getting Started with Ruvector
+# Getting Started with RuVector
 
-## What is Ruvector?
+## What is RuVector?
 
-Ruvector is a high-performance, Rust-native vector database designed for modern AI applications. It provides:
+RuVector is a high-performance, Rust-native vector database and file format designed for modern AI applications. It provides:
 
 - **10-100x performance improvements** over Python/TypeScript implementations
 - **Sub-millisecond latency** with HNSW indexing and SIMD optimization
-- **AgenticDB API compatibility** for seamless migration
 - **Multi-platform deployment** (Rust, Node.js, WASM/Browser, CLI)
-- **Advanced features** including quantization, hybrid search, and causal memory
+- **RVF (RuVector Format)** — a self-contained binary format with embedded WASM, kernel, eBPF, and dashboard segments
+- **Advanced features** including quantization, filtered search, witness chains, COW branching, and AGI container manifests
+
+## Packages
+
+| Package | Registry | Version | Description |
+|---------|----------|---------|-------------|
+| `ruvector-core` | crates.io | 2.0.x | Core Rust library (VectorDB, HNSW, quantization) |
+| `ruvector` | npm | 0.1.x | Node.js native bindings via NAPI-RS |
+| `@ruvector/rvf` | npm | 0.2.x | RVF format library (TypeScript) |
+| `@ruvector/rvf-node` | npm | 0.1.x | RVF Node.js native bindings |
+| `@ruvector/gnn` | npm | 0.1.x | Graph Neural Network bindings |
+| `@ruvector/graph-node` | npm | 2.0.x | Graph database with Cypher queries |
+| `ruvector-wasm` / `@ruvector/wasm` | npm | — | Browser WASM build |
 
 ## Quick Start
 
 ### Installation
 
-#### Rust
-```bash
-# Add to Cargo.toml
+#### Rust (ruvector-core)
+```toml
+# Cargo.toml
 [dependencies]
-ruvector-core = "0.1.0"
+ruvector-core = "2.0"
+```
+
+#### Rust (RVF format — separate workspace)
+```toml
+# Cargo.toml — RVF crates live in examples/rvf or crates/rvf
+[dependencies]
+rvf-runtime = "0.2"
+rvf-crypto = "0.2"
 ```
 
 #### Node.js
 ```bash
 npm install ruvector
-# or
-yarn add ruvector
+# or for the RVF format:
+npm install @ruvector/rvf-node
 ```
 
 #### CLI
 ```bash
-cargo install ruvector-cli
+# Build from source
+git clone https://github.com/ruvnet/ruvector.git
+cd ruvector
+cargo install --path crates/ruvector-cli
 ```
 
-### Basic Usage
+### Basic Usage — ruvector-core (VectorDB)
 
 #### Rust
 ```rust
 use ruvector_core::{VectorDB, VectorEntry, SearchQuery, DbOptions};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new vector database
-    let mut options = DbOptions::default();
-    options.dimensions = 128;
-    options.storage_path = "./vectors.db".to_string();
+    let options = DbOptions {
+        dimensions: 128,
+        storage_path: "./vectors.db".to_string(),
+        ..Default::default()
+    };
 
     let db = VectorDB::new(options)?;
 
@@ -61,12 +85,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         vector: vec![0.1; 128],
         k: 10,
         filter: None,
-        include_vectors: false,
+        ef_search: None,
     };
-    let results = db.search(&query)?;
+    let results = db.search(query)?;
 
     for (i, result) in results.iter().enumerate() {
-        println!("{}. ID: {}, Distance: {}", i + 1, result.id, result.distance);
+        println!("{}. ID: {}, Score: {:.4}", i + 1, result.id, result.score);
     }
 
     Ok(())
@@ -78,32 +102,66 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 const { VectorDB } = require('ruvector');
 
 async function main() {
-    // Create a new vector database
     const db = new VectorDB({
         dimensions: 128,
         storagePath: './vectors.db',
-        distanceMetric: 'cosine'
+        distanceMetric: 'Cosine'
     });
 
-    // Insert a vector
     const id = await db.insert({
         vector: new Float32Array(128).fill(0.1),
         metadata: { text: 'Example document' }
     });
     console.log('Inserted vector:', id);
 
-    // Search for similar vectors
     const results = await db.search({
         vector: new Float32Array(128).fill(0.1),
         k: 10
     });
 
     results.forEach((result, i) => {
-        console.log(`${i + 1}. ID: ${result.id}, Distance: ${result.distance}`);
+        console.log(`${i + 1}. ID: ${result.id}, Score: ${result.score.toFixed(4)}`);
     });
 }
 
 main().catch(console.error);
+```
+
+### Basic Usage — RVF Format (RvfStore)
+
+The RVF format is a newer, self-contained binary format used in the `rvf-runtime` crate. See [`examples/rvf/`](../../examples/rvf/) for working examples.
+
+```rust
+use rvf_runtime::{RvfStore, RvfOptions, QueryOptions, MetadataEntry, MetadataValue};
+use rvf_runtime::options::DistanceMetric;
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let opts = RvfOptions {
+        dimension: 128,
+        metric: DistanceMetric::L2,
+        ..Default::default()
+    };
+
+    let mut store = RvfStore::create("data.rvf", opts)?;
+
+    // Ingest vectors with metadata
+    let vectors = vec![vec![0.1f32; 128]];
+    let refs: Vec<&[f32]> = vectors.iter().map(|v| v.as_slice()).collect();
+    let ids = vec![0u64];
+    let meta = vec![
+        MetadataEntry { field_id: 0, value: MetadataValue::String("doc".into()) },
+    ];
+    store.ingest_batch(&refs, &ids, Some(&meta))?;
+
+    // Query
+    let query = vec![0.1f32; 128];
+    let results = store.query(&query, 5, &QueryOptions::default())?;
+    for r in &results {
+        println!("id={}, distance={:.4}", r.id, r.distance);
+    }
+
+    Ok(())
+}
 ```
 
 #### CLI
@@ -119,7 +177,24 @@ ruvector search --db ./vectors.db --query "[0.1, 0.2, ...]" --top-k 10
 
 # Show database info
 ruvector info --db ./vectors.db
+
+# Graph operations
+ruvector graph create --db ./graph.db --dimensions 128
+ruvector graph query --db ./graph.db --query "MATCH (n) RETURN n LIMIT 10"
 ```
+
+## Two API Surfaces
+
+RuVector has two main API surfaces:
+
+| | **ruvector-core (VectorDB)** | **rvf-runtime (RvfStore)** |
+|---|---|---|
+| **Use case** | General-purpose vector DB | Self-contained binary format |
+| **Storage** | Directory-based | Single `.rvf` file |
+| **IDs** | String-based | u64-based |
+| **Metadata** | JSON HashMap | Typed fields (String, U64) |
+| **Extras** | Collections, metrics, health | Witness chains, WASM/kernel/eBPF embedding, COW branching, AGI containers |
+| **Node.js** | `ruvector` npm package | `@ruvector/rvf-node` npm package |
 
 ## Core Concepts
 
@@ -133,11 +208,11 @@ A vector database stores high-dimensional vectors (embeddings) and enables fast 
 
 ### 2. Distance Metrics
 
-Ruvector supports multiple distance metrics:
+RuVector supports multiple distance metrics:
 - **Euclidean (L2)**: Standard distance in Euclidean space
 - **Cosine**: Measures angle between vectors (normalized dot product)
 - **Dot Product**: Inner product (useful for pre-normalized vectors)
-- **Manhattan (L1)**: Sum of absolute differences
+- **Manhattan (L1)**: Sum of absolute differences (ruvector-core only)
 
 ### 3. HNSW Indexing
 
@@ -153,41 +228,43 @@ Key parameters:
 
 ### 4. Quantization
 
-Reduce memory usage with quantization:
+Reduce memory usage with quantization (ruvector-core):
 - **Scalar (int8)**: 4x compression, 97-99% recall
 - **Product**: 8-16x compression, 90-95% recall
 - **Binary**: 32x compression, 80-90% recall (filtering)
 
-### 5. AgenticDB Features
+### 5. RVF Format Features
 
-Advanced features for AI agents:
-- **Reflexion Memory**: Self-critique episodes for learning
-- **Skill Library**: Reusable action patterns
-- **Causal Memory**: Cause-effect relationships
-- **Learning Sessions**: RL training data
+The RVF binary format supports:
+- **Witness chains**: Cryptographic audit trails (SHAKE256)
+- **Segment embedding**: WASM, kernel, eBPF, and dashboard segments in one file
+- **COW branching**: Copy-on-write branches for staging environments
+- **Lineage tracking**: Parent-child derivation with depth tracking
+- **Membership filters**: Bitmap-based tenant isolation
+- **DoS hardening**: Token buckets, negative caches, proof-of-work
+- **AGI containers**: Self-describing agent manifests
 
 ## Next Steps
 
 - [Installation Guide](INSTALLATION.md) - Detailed installation instructions
-- [Basic Tutorial](BASIC_TUTORIAL.md) - Step-by-step tutorial
+- [Basic Tutorial](BASIC_TUTORIAL.md) - Step-by-step tutorial with ruvector-core
 - [Advanced Features](ADVANCED_FEATURES.md) - Hybrid search, quantization, filtering
-- [AgenticDB Migration Guide](../MIGRATION.md) - Migrate from agenticDB
+- [RVF Examples](../../examples/rvf/) - Working RVF format examples (openfang, security_hardened, etc.)
 - [API Reference](../api/) - Complete API documentation
-- [Examples](../../examples/) - Working code examples
+- [Examples](../../examples/) - All working code examples
 
 ## Performance Tips
 
 1. **Choose the right distance metric**: Cosine for normalized embeddings, Euclidean otherwise
 2. **Tune HNSW parameters**: Higher `m` and `ef_construction` for better recall
 3. **Enable quantization**: Reduces memory 4-32x with minimal accuracy loss
-4. **Batch operations**: Use `insert_batch()` for better throughput
-5. **Memory-map large datasets**: Set `mmap_vectors: true` for datasets larger than RAM
+4. **Batch operations**: Use `insert_batch()` / `ingest_batch()` for better throughput
+5. **Build with SIMD**: `RUSTFLAGS="-C target-cpu=native" cargo build --release`
 
 ## Common Issues
 
 ### Out of Memory
 - Enable quantization to reduce memory usage
-- Use memory-mapped vectors for large datasets
 - Reduce `max_elements` or increase available RAM
 
 ### Slow Search
@@ -204,8 +281,7 @@ Advanced features for AI agents:
 
 - **GitHub**: [https://github.com/ruvnet/ruvector](https://github.com/ruvnet/ruvector)
 - **Issues**: [https://github.com/ruvnet/ruvector/issues](https://github.com/ruvnet/ruvector/issues)
-- **Documentation**: [https://docs.rs/ruvector-core](https://docs.rs/ruvector-core)
 
 ## License
 
-Ruvector is licensed under the MIT License. See [LICENSE](../../LICENSE) for details.
+RuVector is licensed under the MIT License. See [LICENSE](../../LICENSE) for details.

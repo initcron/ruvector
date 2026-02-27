@@ -32,6 +32,7 @@ impl VectorDB {
     /// the HNSW index will be automatically rebuilt from storage.
     /// If opening an existing database, the stored configuration (dimensions,
     /// distance metric, etc.) will be used instead of the provided options.
+    #[allow(unused_mut)] // `options` is mutated only when feature = "storage"
     pub fn new(mut options: DbOptions) -> Result<Self> {
         #[cfg(feature = "storage")]
         let storage = {
@@ -76,6 +77,7 @@ impl VectorDB {
         let storage = Arc::new(VectorStorage::new(options.dimensions)?);
 
         // Choose index based on configuration and available features
+        #[allow(unused_mut)] // `index` is mutated only when feature = "storage"
         let mut index: Box<dyn VectorIndex> = if let Some(hnsw_config) = &options.hnsw_config {
             #[cfg(feature = "hnsw")]
             {
@@ -130,8 +132,10 @@ impl VectorDB {
 
     /// Create with default options
     pub fn with_dimensions(dimensions: usize) -> Result<Self> {
-        let mut options = DbOptions::default();
-        options.dimensions = dimensions;
+        let options = DbOptions {
+            dimensions,
+            ..DbOptions::default()
+        };
         Self::new(options)
     }
 
@@ -182,7 +186,7 @@ impl VectorDB {
                 if let Some(metadata) = &r.metadata {
                     filter
                         .iter()
-                        .all(|(key, value)| metadata.get(key).map_or(false, |v| v == value))
+                        .all(|(key, value)| metadata.get(key).is_some_and(|v| v == value))
                 } else {
                     false
                 }

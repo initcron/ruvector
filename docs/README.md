@@ -140,4 +140,4 @@ docs/
 
 ---
 
-**Last Updated**: 2026-01-21 | **Version**: 0.1.29 | **Status**: Production Ready
+**Last Updated**: 2026-02-26 | **Version**: 2.0.4 (core) / 0.1.100 (npm) | **Status**: Production Ready

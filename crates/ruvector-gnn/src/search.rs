@@ -237,7 +237,7 @@ mod tests {
 
         // Single GNN layer that maintains dimension
         let gnn_layers = vec![
-            RuvectorLayer::new(2, 2, 1, 0.0), // input_dim, hidden_dim, heads, dropout
+            RuvectorLayer::new(2, 2, 1, 0.0).unwrap(), // input_dim, hidden_dim, heads, dropout
         ];
 
         let result = hierarchical_forward(&query, &layer_embeddings, &gnn_layers);

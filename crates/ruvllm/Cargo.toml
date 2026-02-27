@@ -9,15 +9,15 @@ repository.workspace = true
 readme = "README.md"
 description = "LLM serving runtime with Ruvector integration - Paged attention, KV cache, and SONA learning"
 keywords = ["llm", "inference", "paged-attention", "kv-cache", "ruvector"]
-categories = ["science", "algorithms", "machine-learning"]
+categories = ["science", "algorithms"]
 
 [dependencies]
 # Ruvector integration
 ruvector-core = { version = "2.0", path = "../ruvector-core", default-features = false, features = ["storage", "hnsw", "parallel", "simd"] }
-ruvector-sona = { version = "0.1.5", path = "../sona", default-features = false, features = ["serde-support"] }
+ruvector-sona = { version = "0.1.6", path = "../sona", default-features = false, features = ["serde-support"] }
 
 # Optional Ruvector crates for advanced features
-ruvector-attention = { version = "0.1", path = "../ruvector-attention", optional = true }
+ruvector-attention = { version = "2.0", path = "../ruvector-attention", optional = true }
 ruvector-graph = { version = "2.0", path = "../ruvector-graph", optional = true, default-features = false }
 ruvector-gnn = { version = "2.0", path = "../ruvector-gnn", optional = true }
 

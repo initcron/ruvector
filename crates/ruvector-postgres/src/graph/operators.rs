@@ -324,22 +324,45 @@ fn ruvector_create_rdf_store(name: &str) -> bool {
 /// ```
 #[pg_extern]
 fn ruvector_sparql(store_name: &str, query: &str, format: &str) -> Result<String, String> {
+    // Validate input to prevent panics
+    if query.trim().is_empty() {
+        return Err("SPARQL query cannot be empty".to_string());
+    }
+
     let store = get_store(store_name)
         .ok_or_else(|| format!("Triple store '{}' does not exist", store_name))?;
 
-    let parsed = parse_sparql(query).map_err(|e| format!("Parse error: {}", e))?;
+    let format_lower = format.to_lowercase();
 
-    let result = execute_sparql(&store, &parsed).map_err(|e| format!("Execution error: {}", e))?;
+    // Wrap parse/execute/format in catch_unwind to convert any remaining
+    // panics into PostgreSQL errors instead of crashing the backend
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let parsed = parse_sparql(query).map_err(|e| format!("Parse error: {}", e))?;
+        let result =
+            execute_sparql(&store, &parsed).map_err(|e| format!("Execution error: {}", e))?;
+        let result_format = match format_lower.as_str() {
+            "json" => ResultFormat::Json,
+            "xml" => ResultFormat::Xml,
+            "csv" => ResultFormat::Csv,
+            "tsv" => ResultFormat::Tsv,
+            _ => ResultFormat::Json,
+        };
+        Ok(format_results(&result, result_format))
+    }));
 
-    let result_format = match format.to_lowercase().as_str() {
-        "json" => ResultFormat::Json,
-        "xml" => ResultFormat::Xml,
-        "csv" => ResultFormat::Csv,
-        "tsv" => ResultFormat::Tsv,
-        _ => ResultFormat::Json,
-    };
-
-    Ok(format_results(&result, result_format))
+    match result {
+        Ok(inner) => inner,
+        Err(panic_info) => {
+            let msg = if let Some(s) = panic_info.downcast_ref::<String>() {
+                s.clone()
+            } else if let Some(s) = panic_info.downcast_ref::<&str>() {
+                s.to_string()
+            } else {
+                "Unknown internal error".to_string()
+            };
+            Err(format!("Internal error: {}", msg))
+        }
+    }
 }
 
 /// Execute a SPARQL query and return results as JSONB
@@ -350,6 +373,11 @@ fn ruvector_sparql(store_name: &str, query: &str, format: &str) -> Result<String
 /// ```
 #[pg_extern]
 fn ruvector_sparql_json(store_name: &str, query: &str) -> Result<JsonB, String> {
+    // Validate input to prevent panics that would abort PostgreSQL
+    if query.trim().is_empty() {
+        return Err("SPARQL query cannot be empty".to_string());
+    }
+
     let result = ruvector_sparql(store_name, query, "json")?;
 
     let json_value: JsonValue =

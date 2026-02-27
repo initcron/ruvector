@@ -25,7 +25,7 @@ mod gnn_cache_tests {
     #[test]
     fn test_layer_creation_latency() {
         let start = Instant::now();
-        let _layer = RuvectorLayer::new(128, 256, 4, 0.1);
+        let _layer = RuvectorLayer::new(128, 256, 4, 0.1).unwrap();
         let elapsed = start.elapsed();
 
         // Layer creation: 100ms in release, ~2000ms in debug
@@ -48,7 +48,7 @@ mod gnn_cache_tests {
     /// Test that forward pass has acceptable latency
     #[test]
     fn test_forward_pass_latency() {
-        let layer = RuvectorLayer::new(128, 256, 4, 0.1);
+        let layer = RuvectorLayer::new(128, 256, 4, 0.1).unwrap();
         let node = vec![0.5f32; 128];
         let neighbors = vec![vec![0.3f32; 128], vec![0.7f32; 128]];
         let weights = vec![0.5f32, 0.5f32];
@@ -83,7 +83,7 @@ mod gnn_cache_tests {
     /// Test batch operations performance
     #[test]
     fn test_batch_operations_performance() {
-        let layer = RuvectorLayer::new(64, 128, 2, 0.1);
+        let layer = RuvectorLayer::new(64, 128, 2, 0.1).unwrap();
 
         // Create batch of operations
         let batch_size = 100;
@@ -139,7 +139,7 @@ mod gnn_cache_tests {
         for (input, hidden, heads) in sizes {
             // Measure creation
             let start = Instant::now();
-            let layer = RuvectorLayer::new(input, hidden, heads, 0.1);
+            let layer = RuvectorLayer::new(input, hidden, heads, 0.1).unwrap();
             let create_ms = start.elapsed().as_secs_f64() * 1000.0;
 
             // Measure forward
@@ -216,7 +216,7 @@ mod gnn_cache_integration {
 
         // First: measure time including layer creation
         let start_cold = Instant::now();
-        let layer = RuvectorLayer::new(128, 256, 4, 0.1);
+        let layer = RuvectorLayer::new(128, 256, 4, 0.1).unwrap();
         let node = vec![0.5f32; 128];
         let neighbors = vec![vec![0.3f32; 128], vec![0.7f32; 128]];
         let weights = vec![0.5f32, 0.5f32];
@@ -262,7 +262,7 @@ mod gnn_cache_integration {
 
         // Create layer once
         let start = Instant::now();
-        let layer = RuvectorLayer::new(64, 128, 2, 0.1);
+        let layer = RuvectorLayer::new(64, 128, 2, 0.1).unwrap();
         let creation_time = start.elapsed();
 
         let node = vec![0.5f32; 64];

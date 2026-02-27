@@ -89,6 +89,9 @@ export * from './models';
 // Benchmarks for Claude Code use cases
 export * from './benchmarks';
 
+// External Intelligence Providers (ADR-043)
+export * from './intelligence';
+
 // Native bindings utilities
 export { version, hasSimdSupport } from './native';
 

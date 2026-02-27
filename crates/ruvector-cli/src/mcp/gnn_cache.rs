@@ -189,7 +189,8 @@ impl GnnCache {
         }
 
         // Create new layer
-        let layer = RuvectorLayer::new(input_dim, hidden_dim, heads, dropout);
+        let layer = RuvectorLayer::new(input_dim, hidden_dim, heads, dropout)
+            .expect("GNN layer cache: invalid layer configuration");
 
         // Cache it
         {

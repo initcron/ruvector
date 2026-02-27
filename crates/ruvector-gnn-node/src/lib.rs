@@ -44,21 +44,15 @@ impl RuvectorLayer {
     /// ```
     #[napi(constructor)]
     pub fn new(input_dim: u32, hidden_dim: u32, heads: u32, dropout: f64) -> Result<Self> {
-        if dropout < 0.0 || dropout > 1.0 {
-            return Err(Error::new(
-                Status::InvalidArg,
-                "Dropout must be between 0.0 and 1.0".to_string(),
-            ));
-        }
+        let inner = RustRuvectorLayer::new(
+            input_dim as usize,
+            hidden_dim as usize,
+            heads as usize,
+            dropout as f32,
+        )
+        .map_err(|e| Error::new(Status::InvalidArg, e.to_string()))?;
 
-        Ok(Self {
-            inner: RustRuvectorLayer::new(
-                input_dim as usize,
-                hidden_dim as usize,
-                heads as usize,
-                dropout as f32,
-            ),
-        })
+        Ok(Self { inner })
     }
 
     /// Forward pass through the GNN layer

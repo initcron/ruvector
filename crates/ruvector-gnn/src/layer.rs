@@ -3,6 +3,7 @@
 //! This module implements graph neural network layers that operate on HNSW graph structure,
 //! including attention mechanisms, normalization, and gated recurrent updates.
 
+use crate::error::GnnError;
 use ndarray::{Array1, Array2, ArrayView1};
 use rand::Rng;
 use rand_distr::{Distribution, Normal};
@@ -93,22 +94,27 @@ pub struct MultiHeadAttention {
 
 impl MultiHeadAttention {
     /// Create a new multi-head attention layer
-    pub fn new(embed_dim: usize, num_heads: usize) -> Self {
-        assert!(
-            embed_dim % num_heads == 0,
-            "Embedding dimension must be divisible by number of heads"
-        );
+    ///
+    /// # Errors
+    /// Returns `GnnError::LayerConfig` if `embed_dim` is not divisible by `num_heads`.
+    pub fn new(embed_dim: usize, num_heads: usize) -> Result<Self, GnnError> {
+        if embed_dim % num_heads != 0 {
+            return Err(GnnError::layer_config(format!(
+                "Embedding dimension ({}) must be divisible by number of heads ({})",
+                embed_dim, num_heads
+            )));
+        }
 
         let head_dim = embed_dim / num_heads;
 
-        Self {
+        Ok(Self {
             num_heads,
             head_dim,
             q_linear: Linear::new(embed_dim, embed_dim),
             k_linear: Linear::new(embed_dim, embed_dim),
             v_linear: Linear::new(embed_dim, embed_dim),
             out_linear: Linear::new(embed_dim, embed_dim),
-        }
+        })
     }
 
     /// Forward pass: compute multi-head attention
@@ -334,20 +340,31 @@ impl RuvectorLayer {
     /// * `hidden_dim` - Dimension of hidden representations
     /// * `heads` - Number of attention heads
     /// * `dropout` - Dropout rate (0.0 to 1.0)
-    pub fn new(input_dim: usize, hidden_dim: usize, heads: usize, dropout: f32) -> Self {
-        assert!(
-            dropout >= 0.0 && dropout <= 1.0,
-            "Dropout must be between 0.0 and 1.0"
-        );
+    ///
+    /// # Errors
+    /// Returns `GnnError::LayerConfig` if `dropout` is outside `[0.0, 1.0]` or
+    /// if `hidden_dim` is not divisible by `heads`.
+    pub fn new(
+        input_dim: usize,
+        hidden_dim: usize,
+        heads: usize,
+        dropout: f32,
+    ) -> Result<Self, GnnError> {
+        if !(0.0..=1.0).contains(&dropout) {
+            return Err(GnnError::layer_config(format!(
+                "Dropout must be between 0.0 and 1.0, got {}",
+                dropout
+            )));
+        }
 
-        Self {
+        Ok(Self {
             w_msg: Linear::new(input_dim, hidden_dim),
             w_agg: Linear::new(hidden_dim, hidden_dim),
             w_update: GRUCell::new(hidden_dim, hidden_dim),
-            attention: MultiHeadAttention::new(hidden_dim, heads),
+            attention: MultiHeadAttention::new(hidden_dim, heads)?,
             norm: LayerNorm::new(hidden_dim, 1e-5),
             dropout,
-        }
+        })
     }
 
     /// Forward pass through the GNN layer
@@ -464,13 +481,21 @@ mod tests {
 
     #[test]
     fn test_multihead_attention() {
-        let attention = MultiHeadAttention::new(8, 2);
+        let attention = MultiHeadAttention::new(8, 2).unwrap();
         let query = vec![0.5; 8];
         let keys = vec![vec![0.3; 8], vec![0.7; 8]];
         let values = vec![vec![0.2; 8], vec![0.8; 8]];
 
         let output = attention.forward(&query, &keys, &values);
         assert_eq!(output.len(), 8);
+    }
+
+    #[test]
+    fn test_multihead_attention_invalid_dims() {
+        let result = MultiHeadAttention::new(10, 3);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("divisible"));
     }
 
     #[test]
@@ -485,7 +510,7 @@ mod tests {
 
     #[test]
     fn test_ruvector_layer() {
-        let layer = RuvectorLayer::new(4, 8, 2, 0.1);
+        let layer = RuvectorLayer::new(4, 8, 2, 0.1).unwrap();
 
         let node = vec![1.0, 2.0, 3.0, 4.0];
         let neighbors = vec![vec![0.5, 1.0, 1.5, 2.0], vec![2.0, 3.0, 4.0, 5.0]];
@@ -497,7 +522,7 @@ mod tests {
 
     #[test]
     fn test_ruvector_layer_no_neighbors() {
-        let layer = RuvectorLayer::new(4, 8, 2, 0.1);
+        let layer = RuvectorLayer::new(4, 8, 2, 0.1).unwrap();
 
         let node = vec![1.0, 2.0, 3.0, 4.0];
         let neighbors: Vec<Vec<f32>> = vec![];
@@ -505,5 +530,17 @@ mod tests {
 
         let output = layer.forward(&node, &neighbors, &weights);
         assert_eq!(output.len(), 8);
+    }
+
+    #[test]
+    fn test_ruvector_layer_invalid_dropout() {
+        let result = RuvectorLayer::new(4, 8, 2, 1.5);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_ruvector_layer_invalid_heads() {
+        let result = RuvectorLayer::new(4, 7, 3, 0.1);
+        assert!(result.is_err());
     }
 }

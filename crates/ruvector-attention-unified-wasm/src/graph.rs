@@ -43,14 +43,10 @@ impl WasmGNNLayer {
         heads: usize,
         dropout: f32,
     ) -> Result<WasmGNNLayer, JsError> {
-        if dropout < 0.0 || dropout > 1.0 {
-            return Err(JsError::new("Dropout must be between 0.0 and 1.0"));
-        }
+        let inner = RuvectorLayer::new(input_dim, hidden_dim, heads, dropout)
+            .map_err(|e| JsError::new(&e.to_string()))?;
 
-        Ok(WasmGNNLayer {
-            inner: RuvectorLayer::new(input_dim, hidden_dim, heads, dropout),
-            hidden_dim,
-        })
+        Ok(WasmGNNLayer { inner, hidden_dim })
     }
 
     /// Forward pass through the GNN layer
@@ -375,6 +371,12 @@ mod tests {
     #[wasm_bindgen_test]
     fn test_gnn_layer_invalid_dropout() {
         let layer = WasmGNNLayer::new(4, 8, 2, 1.5);
+        assert!(layer.is_err());
+    }
+
+    #[wasm_bindgen_test]
+    fn test_gnn_layer_invalid_heads() {
+        let layer = WasmGNNLayer::new(4, 7, 3, 0.1);
         assert!(layer.is_err());
     }
 

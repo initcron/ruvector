@@ -31,13 +31,21 @@ impl StageIIIEncoder {
     pub fn new(config: &CrvConfig) -> Self {
         let dim = config.dimensions;
         // Single GNN layer: input_dim -> hidden_dim, 1 head
-        let gnn_layer = RuvectorLayer::new(dim, dim, 1, 0.0);
+        // heads=1 always divides any dim, and dropout=0.0 is always valid
+        let gnn_layer = RuvectorLayer::new(dim, dim, 1, 0.0)
+            .expect("dim is always divisible by 1 head");
 
         Self { dim, gnn_layer }
     }
 
     /// Encode a sketch element into a node feature vector.
-    fn encode_element(&self, label: &str, kind: GeometricKind, position: (f32, f32), scale: Option<f32>) -> Vec<f32> {
+    fn encode_element(
+        &self,
+        label: &str,
+        kind: GeometricKind,
+        position: (f32, f32),
+        scale: Option<f32>,
+    ) -> Vec<f32> {
         let mut features = vec![0.0f32; self.dim];
 
         // Geometric kind encoding (one-hot style in first 8 dims)
@@ -110,9 +118,7 @@ impl StageIIIEncoder {
     /// into a single graph-level vector.
     pub fn encode(&self, data: &StageIIIData) -> CrvResult<Vec<f32>> {
         if data.sketch_elements.is_empty() {
-            return Err(CrvError::EmptyInput(
-                "No sketch elements".to_string(),
-            ));
+            return Err(CrvError::EmptyInput("No sketch elements".to_string()));
         }
 
         // Build label → index mapping
@@ -127,9 +133,7 @@ impl StageIIIEncoder {
         let node_features: Vec<Vec<f32>> = data
             .sketch_elements
             .iter()
-            .map(|elem| {
-                self.encode_element(&elem.label, elem.kind, elem.position, elem.scale)
-            })
+            .map(|elem| self.encode_element(&elem.label, elem.kind, elem.position, elem.scale))
             .collect();
 
         // For each node, collect neighbor embeddings and edge weights
@@ -211,12 +215,8 @@ mod tests {
         let config = test_config();
         let encoder = StageIIIEncoder::new(&config);
 
-        let features = encoder.encode_element(
-            "building",
-            GeometricKind::Rectangle,
-            (0.5, 0.3),
-            Some(2.0),
-        );
+        let features =
+            encoder.encode_element("building", GeometricKind::Rectangle, (0.5, 0.3), Some(2.0));
         assert_eq!(features.len(), 32);
     }
 

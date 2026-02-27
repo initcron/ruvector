@@ -112,7 +112,7 @@ fn search_examples(db: &VectorDB) -> Result<(), Box<dyn std::error::Error>> {
         vector: vec![0.15; 128],
         k: 10,  // Return top 10 results
         filter: None,
-        include_vectors: false,
+        ef_search: None,
     };
 
     let results = db.search(&query)?;
@@ -122,7 +122,7 @@ fn search_examples(db: &VectorDB) -> Result<(), Box<dyn std::error::Error>> {
             "{}. ID: {}, Distance: {:.4}",
             i + 1,
             result.id,
-            result.distance
+            result.score
         );
     }
 
@@ -139,7 +139,7 @@ const results = await db.search({
 });
 
 results.forEach((result, i) => {
-    console.log(`${i + 1}. ID: ${result.id}, Distance: ${result.distance.toFixed(4)}`);
+    console.log(`${i + 1}. ID: ${result.id}, Distance: ${result.score.toFixed(4)}`);
 });
 ```
 
@@ -270,7 +270,8 @@ Tune HNSW parameters for your use case.
 ### Rust
 
 ```rust
-use ruvector_core::{HnswConfig, DistanceMetric};
+use ruvector_core::types::{HnswConfig, DbOptions};
+use ruvector_core::DistanceMetric;
 
 fn create_tuned_db() -> Result<VectorDB, Box<dyn std::error::Error>> {
     let mut options = DbOptions::default();
@@ -278,12 +279,12 @@ fn create_tuned_db() -> Result<VectorDB, Box<dyn std::error::Error>> {
     options.storage_path = "./tuned_db.db".to_string();
 
     // HNSW configuration
-    options.hnsw = HnswConfig {
+    options.hnsw_config = Some(HnswConfig {
         m: 32,                    // Connections per node (16-64)
         ef_construction: 200,     // Build quality (100-400)
         ef_search: 100,           // Search quality (50-500)
         max_elements: 10_000_000, // Maximum vectors
-    };
+    });
 
     // Distance metric
     options.distance_metric = DistanceMetric::Cosine;
@@ -328,7 +329,7 @@ Reduce memory usage with quantization.
 ### Rust
 
 ```rust
-use ruvector_core::QuantizationConfig;
+use ruvector_core::types::{QuantizationConfig, DbOptions};
 
 fn create_quantized_db() -> Result<VectorDB, Box<dyn std::error::Error>> {
     let mut options = DbOptions::default();
@@ -336,13 +337,13 @@ fn create_quantized_db() -> Result<VectorDB, Box<dyn std::error::Error>> {
     options.storage_path = "./quantized_db.db".to_string();
 
     // Scalar quantization (4x compression)
-    options.quantization = QuantizationConfig::Scalar;
+    options.quantization = Some(QuantizationConfig::Scalar);
 
     // Product quantization (8-16x compression)
-    // options.quantization = QuantizationConfig::Product {
+    // options.quantization = Some(QuantizationConfig::Product {
     //     subspaces: 16,
     //     k: 256,
-    // };
+    // });
 
     let db = VectorDB::new(options)?;
     println!("Created database with scalar quantization");
@@ -414,10 +415,8 @@ ruvector import --db ./new_db.db --input ./backup.json
 Here's a complete program combining everything:
 
 ```rust
-use ruvector_core::{
-    VectorDB, VectorEntry, SearchQuery, DbOptions, HnswConfig,
-    DistanceMetric, QuantizationConfig,
-};
+use ruvector_core::{VectorDB, VectorEntry, SearchQuery, DistanceMetric};
+use ruvector_core::types::{DbOptions, HnswConfig, QuantizationConfig};
 use rand::Rng;
 use serde_json::json;
 use std::collections::HashMap;
@@ -427,14 +426,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut options = DbOptions::default();
     options.dimensions = 128;
     options.storage_path = "./tutorial_db.db".to_string();
-    options.hnsw = HnswConfig {
+    options.hnsw_config = Some(HnswConfig {
         m: 32,
         ef_construction: 200,
         ef_search: 100,
         max_elements: 1_000_000,
-    };
+    });
     options.distance_metric = DistanceMetric::Cosine;
-    options.quantization = QuantizationConfig::Scalar;
+    options.quantization = Some(QuantizationConfig::Scalar);
 
     let db = VectorDB::new(options)?;
     println!("✓ Created database");
@@ -469,7 +468,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         vector: query_vector,
         k: 10,
         filter: None,
-        include_vectors: false,
+        ef_search: None,
     };
 
     let start = std::time::Instant::now();
@@ -479,7 +478,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Search completed in {:?}", search_time);
     println!("\nTop 10 Results:");
     for (i, result) in results.iter().enumerate() {
-        println!("  {}. ID: {}, Distance: {:.4}", i + 1, result.id, result.distance);
+        println!("  {}. ID: {}, Distance: {:.4}", i + 1, result.id, result.score);
     }
 
     Ok(())
@@ -525,7 +524,7 @@ let results = db.search(&SearchQuery {
     filter: Some(json!({
         "timestamp": { "$gte": one_week_ago }
     })),
-    include_vectors: false,
+    ef_search: None,
 })?;
 
 // Return relevant documents
@@ -550,7 +549,7 @@ let recommendations = db.search(&SearchQuery {
     filter: Some(json!({
         "id": { "$nin": user_already_seen }
     })),
-    include_vectors: false,
+    ef_search: None,
 })?;
 ```
 
