@@ -90,7 +90,9 @@ async function fetchIndiaData(symbol, days, market) {
     const { IndiaDataManager } = await import('./system/data-connectors-india.js');
     const dataManager = new IndiaDataManager({
       exchange: 'NSE',
-      kiteTier: process.env.KITE_TIER || 'free'
+      kiteTier: process.env.KITE_TIER || 'free',
+      kiteApiKey: process.env.KITE_API_KEY || '',
+      kiteAccessToken: process.env.KITE_ACCESS_TOKEN || ''
     });
 
     console.log(`Fetching real NSE data for ${symbol}...`);
@@ -100,7 +102,8 @@ async function fetchIndiaData(symbol, days, market) {
     });
 
     if (historical && historical.length >= 30) {
-      console.log(`Loaded ${historical.length} candles from Yahoo Finance (${symbol}.NS)`);
+      const source = historical[0]?.source || 'unknown';
+      console.log(`Loaded ${historical.length} candles from ${source === 'kite' ? 'Kite Connect' : 'Yahoo Finance'} (${symbol}${source !== 'kite' ? '.NS' : ''})`);
       return historical;
     }
   } catch (err) {
@@ -116,7 +119,12 @@ async function fetchIndiaData(symbol, days, market) {
 async function fetchIndiaQuote(symbol) {
   try {
     const { IndiaDataManager } = await import('./system/data-connectors-india.js');
-    const dataManager = new IndiaDataManager({ exchange: 'NSE' });
+    const dataManager = new IndiaDataManager({
+      exchange: 'NSE',
+      kiteTier: process.env.KITE_TIER || 'free',
+      kiteApiKey: process.env.KITE_API_KEY || '',
+      kiteAccessToken: process.env.KITE_ACCESS_TOKEN || ''
+    });
     const quote = await dataManager.getQuote(symbol);
     return quote;
   } catch {
@@ -294,6 +302,8 @@ ENVIRONMENT VARIABLES (India/Kite Connect):
 
     const engine = new BacktestEngine({
       simulation: { initialCapital: capital, warmupPeriod: 50 },
+      execution: { slippage: 0.001, commission: 0.001, marketImpact: 0.0005, fillRate: 1.0 },
+      riskFreeRate: market.riskFreeRate || 0.05,
       tradingDaysPerYear: tradingDays
     });
 

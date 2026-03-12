@@ -348,8 +348,10 @@ class TradingPipeline {
       if (!this.lstmTransformer) {
         const inputSize = features[0]?.length || 10;
         this.lstmTransformer = new HybridLSTMTransformer({
-          lstm: { inputSize, hiddenSize: 64, numLayers: 2 },
-          transformer: { dModel: 64, numHeads: 4, numLayers: 2, ffDim: 128 }
+          lstm: { inputSize, hiddenSize: 64, numLayers: 2, dropout: 0.2, bidirectional: false },
+          transformer: { dModel: 64, numHeads: 4, numLayers: 2, ffDim: 128, dropout: 0.1, maxSeqLength: 50 },
+          fusion: { method: 'concat_attention', outputDim: 32 },
+          training: { learningRate: 0.001, batchSize: 32, epochs: 100, patience: 10, validationSplit: 0.2 }
         });
       }
 
@@ -366,15 +368,12 @@ class TradingPipeline {
 
       // Analyze each news item
       for (const item of news) {
-        const lexiconResult = this.lexicon.analyze(item.text);
-        const embeddingResult = this.embedding.analyze(item.text);
-
-        this.sentimentAggregator.addSentiment(item.symbol, {
-          source: item.source || 'news',
-          score: (lexiconResult.score + embeddingResult.score) / 2,
-          confidence: (lexiconResult.confidence + embeddingResult.confidence) / 2,
-          timestamp: item.timestamp || Date.now()
-        });
+        this.sentimentAggregator.addObservation(
+          item.symbol,
+          item.source || 'news',
+          item.text,
+          item.timestamp || Date.now()
+        );
       }
 
       // Get aggregated sentiment per symbol
@@ -400,27 +399,42 @@ class TradingPipeline {
       // Initialize DRL if needed
       if (!this.drlManager) {
         const numAssets = portfolio.assets?.length || 1;
-        this.drlManager = new EnsemblePortfolioManager(numAssets, {
-          lookbackWindow: 30,
-          transactionCost: 0.001
-        });
+        const drlConfig = {
+          environment: { numAssets, lookbackWindow: 30, rebalanceFrequency: 'daily', transactionCost: 0.001, slippage: 0.0005 },
+          agents: {
+            ppo: { enabled: true, clipEpsilon: 0.2, entropyCoef: 0.01, valueLossCoef: 0.5, maxGradNorm: 0.5 },
+            sac: { enabled: true, alpha: 0.2, tau: 0.005, targetUpdateFreq: 1 },
+            a2c: { enabled: true, entropyCoef: 0.01, valueLossCoef: 0.5, numSteps: 5 }
+          },
+          training: { learningRate: 0.0003, gamma: 0.99, batchSize: 64, bufferSize: 100000, hiddenDim: 128, numEpisodes: 1000 },
+          risk: { maxPositionSize: 0.3, minCashReserve: 0.05, maxDrawdown: 0.15, rewardType: 'sharpe' },
+          ensemble: { method: 'weighted_average', weights: { ppo: 0.35, sac: 0.35, a2c: 0.30 } }
+        };
+        this.drlManager = new EnsemblePortfolioManager(drlConfig);
+        // Build state to determine dimensions, then initialize agents
+        const state = this.buildDrlState(candles, portfolio);
+        this.drlManager.initialize(state.length, numAssets);
       }
 
       // Get state from environment
       const state = this.buildDrlState(candles, portfolio);
       const action = this.drlManager.getEnsembleAction(state);
 
+      // Interpret: max-weight asset gets 'buy', low weights get 'hold'
+      const maxWeight = Math.max(...action);
+      const actionType = maxWeight > 1 / (portfolio.assets?.length || 1) + 0.05 ? 'rebalance' : 'hold';
+
       return {
         weights: action,
-        action: this.interpretDrlAction(action)
+        action: actionType
       };
     }, ['data_prep']));
 
     // Node 5: Signal Fusion (depends on lstm, sentiment, drl)
     dag.addNode(new DagNode('signal_fusion', 'Signal Fusion', async (ctx, deps) => {
-      const lstmResult = deps.lstm_predict;
-      const sentimentResult = deps.sentiment_analyze;
-      const drlResult = deps.drl_decide;
+      const lstmResult = deps.lstm_predict || { prediction: 0, confidence: 0, signal: 'HOLD' };
+      const sentimentResult = deps.sentiment_analyze || {};
+      const drlResult = deps.drl_decide || { weights: [], action: 'hold' };
       const { symbols } = ctx;
 
       const signals = {};
@@ -460,7 +474,7 @@ class TradingPipeline {
 
     // Node 6: Position Sizing with Kelly (depends on signal_fusion)
     dag.addNode(new DagNode('position_sizing', 'Position Sizing', async (ctx, deps) => {
-      const signals = deps.signal_fusion;
+      const signals = deps.signal_fusion || {};
       const { portfolio, riskManager } = ctx;
 
       const positions = {};
@@ -514,7 +528,7 @@ class TradingPipeline {
 
     // Node 7: Order Generation (depends on position_sizing)
     dag.addNode(new DagNode('order_gen', 'Order Generation', async (ctx, deps) => {
-      const positions = deps.position_sizing;
+      const positions = deps.position_sizing || {};
       const { portfolio, prices } = ctx;
 
       const orders = [];
@@ -524,21 +538,22 @@ class TradingPipeline {
           continue;
         }
 
-        const currentPosition = portfolio?.positions?.[symbol] || 0;
-        const targetPosition = position.size;
-        const delta = targetPosition - currentPosition;
+        const price = prices?.[symbol] || 100;
+        // Convert current position (shares) to dollar value for comparison
+        const currentPositionValue = (portfolio?.positions?.[symbol] || 0) * price;
+        const targetPositionValue = position.size;
+        const deltaValue = targetPositionValue - currentPositionValue;
 
-        if (Math.abs(delta) < this.config.execution.minOrderSize) {
+        if (Math.abs(deltaValue) < this.config.execution.minOrderSize) {
           continue;  // Skip small orders
         }
 
-        const price = prices?.[symbol] || 100;
-        const shares = Math.floor(Math.abs(delta) / price);
+        const shares = Math.floor(Math.abs(deltaValue) / price);
 
         if (shares > 0) {
           orders.push({
             symbol,
-            side: delta > 0 ? 'buy' : 'sell',
+            side: deltaValue > 0 ? 'buy' : 'sell',
             quantity: shares,
             type: 'market',
             price,
